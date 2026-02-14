@@ -137,17 +137,17 @@
     // Tower Affixes (Diablo-style loot system)
     const TOWER_AFFIXES = [
       { name: 'Powerful', stat: 'dmg', mult: 1.25, color: '#ff6b6b' },
-      { name: 'Swift', stat: 'rof', mult: 0.80, color: '#4ecdc4' },
+      { name: 'Swift', stat: 'rof', mult: 0.80, color: '#4ecdc4' }, // Lower rof = faster attacks
       { name: 'Precise', stat: 'range', mult: 1.30, color: '#ffe66d' },
       { name: 'Resilient', stat: 'hp', mult: 1.40, color: '#95e1d3' },
       { name: 'Deadly', stat: 'dmg', mult: 1.50, color: '#f38181' },
-      { name: 'Rapid', stat: 'rof', mult: 0.65, color: '#48dbfb' },
+      { name: 'Rapid', stat: 'rof', mult: 0.65, color: '#48dbfb' }, // Lower rof = faster attacks
       { name: 'Fortified', stat: 'hp', mult: 1.70, color: '#a8e6cf' },
       { name: 'Sharpshooter', stat: 'range', mult: 1.50, color: '#ffd93d' }
     ];
 
     function rollTowerAffixes(isBoss = false) {
-      const affixCount = isBoss ? Math.floor(Math.random() * 2) + 2 : Math.random() < 0.4 ? 1 : 0; // bosses drop 2-3, regular 0-1
+      const affixCount = isBoss ? Math.floor(Math.random() * 2) + 2 : Math.random() < 0.4 ? 1 : 0; // bosses: 2-3 affixes, regular: 0-1 affixes
       if (affixCount === 0) return [];
       
       const rolled = [];
@@ -205,8 +205,8 @@
         ctx.fillText('?', this.x, this.y);
       }
       
-      isNear(px, py, dist = 50) {
-        return Math.hypot(this.x - px, this.y - py) < dist;
+      isNear(px, py, radius = 50) {
+        return Math.hypot(this.x - px, this.y - py) < radius;
       }
     }
 
@@ -483,8 +483,7 @@
         if (loot.isNear(x, y)) {
           pickedUpLoot = loot;
           lootDrops.splice(i, 1);
-          towerType = loot.type;
-          toggleBtn.textContent = towerLabel(towerType) + (loot.affixes.length > 0 ? ' +' + loot.affixes.length : '');
+          toggleBtn.textContent = towerLabel(loot.type) + (loot.affixes.length > 0 ? ' +' + loot.affixes.length : '');
           return;
         }
       }
@@ -559,7 +558,8 @@
       updateStartButton();
       let hudText = `Points: ${points} | Base Health: ${baseHealth} | Rift: ${round} ${spawning?'(spawning…)':(canStartRound()?'(ready)':'')}`;
       if (pickedUpLoot) {
-        hudText += ` | LOOT: ${pickedUpLoot.type.toUpperCase()}`;
+        const lootTypeName = pickedUpLoot.type.charAt(0).toUpperCase() + pickedUpLoot.type.slice(1);
+        hudText += ` | LOOT: ${lootTypeName}`;
         if (pickedUpLoot.affixes.length > 0) {
           hudText += ' [' + pickedUpLoot.affixes.map(a => a.name).join(', ') + ']';
         }
