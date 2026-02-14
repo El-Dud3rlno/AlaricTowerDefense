@@ -187,18 +187,25 @@
         ctx.fill();
         ctx.restore();
         
-        // Draw loot icon
+        // Draw loot icon (larger)
         ctx.fillStyle = s.color;
-        ctx.fillRect(this.x - 8, this.y - 8, 16, 16);
+        ctx.fillRect(this.x - 10, this.y - 10, 20, 20);
         
         // Draw border based on rarity (affix count)
         const borderColor = this.affixes.length >= 2 ? '#ffd700' : this.affixes.length === 1 ? '#4ecdc4' : '#999';
         ctx.strokeStyle = borderColor;
-        ctx.lineWidth = 2;
-        ctx.strokeRect(this.x - 8, this.y - 8, 16, 16);
+        ctx.lineWidth = 3;
+        ctx.strokeRect(this.x - 10, this.y - 10, 20, 20);
+        
+        // Draw "?" text on loot
+        ctx.fillStyle = '#fff';
+        ctx.font = 'bold 14px Arial';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText('?', this.x, this.y);
       }
       
-      isNear(px, py, dist = 30) {
+      isNear(px, py, dist = 50) {
         return Math.hypot(this.x - px, this.y - py) < dist;
       }
     }
