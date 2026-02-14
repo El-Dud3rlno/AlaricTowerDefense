@@ -66,21 +66,54 @@
       toggleBtn.textContent = towerLabel(towerType);
     };
 
-    const towers = [], enemies = [], tBullets = [], eBullets = [];
+    const towers = [], enemies = [], tBullets = [], eBullets = [], lootDrops = [];
     let points = 150, baseHealth = 150, round = 0;
     let spawning = false;
 
-    let path = [];
+    let paths = [];
     function makePath(){
-      path = [
-        {x: 10,            y: height*0.55},
-        {x: width*0.25,    y: height*0.55},
-        {x: width*0.25,    y: height*0.25},
-        {x: width*0.55,    y: height*0.25},
-        {x: width*0.55,    y: height*0.75},
-        {x: width*0.85,    y: height*0.75},
-        {x: width*0.85,    y: height*0.55},
-        {x: width-10,      y: height*0.55}
+      // Create 4 distinct paths with varying crossings
+      paths = [
+        // Path 1: Top route with crossings
+        [
+          {x: 10,            y: height*0.25},
+          {x: width*0.20,    y: height*0.25},
+          {x: width*0.35,    y: height*0.50},  // crossing point
+          {x: width*0.50,    y: height*0.25},
+          {x: width*0.70,    y: height*0.25},
+          {x: width*0.85,    y: height*0.50},  // crossing point
+          {x: width-10,      y: height*0.50}
+        ],
+        // Path 2: Bottom route
+        [
+          {x: 10,            y: height*0.75},
+          {x: width*0.25,    y: height*0.75},
+          {x: width*0.35,    y: height*0.50},  // crossing point
+          {x: width*0.50,    y: height*0.75},
+          {x: width*0.75,    y: height*0.75},
+          {x: width*0.85,    y: height*0.50},  // crossing point
+          {x: width-10,      y: height*0.50}
+        ],
+        // Path 3: Middle serpentine
+        [
+          {x: 10,            y: height*0.50},
+          {x: width*0.20,    y: height*0.50},
+          {x: width*0.35,    y: height*0.35},
+          {x: width*0.50,    y: height*0.50},
+          {x: width*0.65,    y: height*0.65},
+          {x: width*0.85,    y: height*0.50},
+          {x: width-10,      y: height*0.50}
+        ],
+        // Path 4: Zigzag route
+        [
+          {x: 10,            y: height*0.40},
+          {x: width*0.20,    y: height*0.60},
+          {x: width*0.35,    y: height*0.40},
+          {x: width*0.50,    y: height*0.60},
+          {x: width*0.65,    y: height*0.40},
+          {x: width*0.80,    y: height*0.60},
+          {x: width-10,      y: height*0.50}
+        ]
       ];
     }
     makePath();
@@ -101,12 +134,102 @@
       return null;
     }
 
+    // Tower Affixes (Diablo-style loot system)
+    const TOWER_AFFIXES = [
+      { name: 'Powerful', stat: 'dmg', mult: 1.25, color: '#ff6b6b' },
+      { name: 'Swift', stat: 'rof', mult: 0.80, color: '#4ecdc4' },
+      { name: 'Precise', stat: 'range', mult: 1.30, color: '#ffe66d' },
+      { name: 'Resilient', stat: 'hp', mult: 1.40, color: '#95e1d3' },
+      { name: 'Deadly', stat: 'dmg', mult: 1.50, color: '#f38181' },
+      { name: 'Rapid', stat: 'rof', mult: 0.65, color: '#48dbfb' },
+      { name: 'Fortified', stat: 'hp', mult: 1.70, color: '#a8e6cf' },
+      { name: 'Sharpshooter', stat: 'range', mult: 1.50, color: '#ffd93d' }
+    ];
+
+    function rollTowerAffixes(isBoss = false) {
+      const affixCount = isBoss ? Math.floor(Math.random() * 2) + 2 : Math.random() < 0.4 ? 1 : 0; // bosses drop 2-3, regular 0-1
+      if (affixCount === 0) return [];
+      
+      const rolled = [];
+      const available = [...TOWER_AFFIXES];
+      for (let i = 0; i < affixCount && available.length > 0; i++) {
+        const idx = Math.floor(Math.random() * available.length);
+        rolled.push(available[idx]);
+        available.splice(idx, 1);
+      }
+      return rolled;
+    }
+
+    class TowerLoot {
+      constructor(x, y, type, affixes = []) {
+        this.x = x;
+        this.y = y;
+        this.type = type;
+        this.affixes = affixes;
+        this.r = 12;
+        this.pulseTime = 0;
+      }
+      
+      update() {
+        this.pulseTime += 0.05;
+      }
+      
+      draw() {
+        const pulse = Math.sin(this.pulseTime) * 0.3 + 1;
+        const s = statsFor(this.type);
+        
+        // Draw glow
+        ctx.save();
+        ctx.globalAlpha = 0.3;
+        ctx.fillStyle = s.color;
+        ctx.beginPath();
+        ctx.arc(this.x, this.y, this.r * pulse * 1.5, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+        
+        // Draw loot icon
+        ctx.fillStyle = s.color;
+        ctx.fillRect(this.x - 8, this.y - 8, 16, 16);
+        
+        // Draw border based on rarity (affix count)
+        const borderColor = this.affixes.length >= 2 ? '#ffd700' : this.affixes.length === 1 ? '#4ecdc4' : '#999';
+        ctx.strokeStyle = borderColor;
+        ctx.lineWidth = 2;
+        ctx.strokeRect(this.x - 8, this.y - 8, 16, 16);
+      }
+      
+      isNear(px, py, dist = 30) {
+        return Math.hypot(this.x - px, this.y - py) < dist;
+      }
+    }
+
     class Tower {
-      constructor(x,y,type='fast'){
-        this.x=x; this.y=y; this.type=type; this.cool=0; this.range=125;
+      constructor(x, y, type='fast', affixes=[]){
+        this.x=x; this.y=y; this.type=type; this.affixes=affixes; this.cool=0; this.range=125;
         const s = statsFor(type);
         this.maxHP = s.baseHP; this.hp = this.maxHP;
+        
+        // Apply affixes
+        for (const affix of affixes) {
+          if (affix.stat === 'hp') {
+            this.maxHP = Math.floor(this.maxHP * affix.mult);
+            this.hp = this.maxHP;
+          } else if (affix.stat === 'range') {
+            this.range = Math.floor(this.range * affix.mult);
+          }
+        }
       }
+      
+      getModifiedStat(baseStat, statName) {
+        let value = baseStat;
+        for (const affix of this.affixes) {
+          if (affix.stat === statName) {
+            value *= affix.mult;
+          }
+        }
+        return value;
+      }
+      
       update(){
         if (this.cool>0) this.cool--;
         let target=null, nd=1e9;
@@ -116,31 +239,45 @@
         }
         if (!target || this.cool>0) return;
         const s = statsFor(this.type);
+        const dmg = this.getModifiedStat(s.dmg, 'dmg');
+        const rof = this.getModifiedStat(s.rof, 'rof');
+        
         if (s.special==='dual'){
-          tBullets.push(new TBullet(this.x,this.y,target,s.dmg, this.type));
-          tBullets.push(new TBullet(this.x,this.y,target,s.dmg*2, this.type));
+          tBullets.push(new TBullet(this.x,this.y,target,dmg, this.type));
+          tBullets.push(new TBullet(this.x,this.y,target,dmg*2, this.type));
         } else if (s.special==='splash'){
-          tBullets.push(new TBullet(this.x,this.y,target,s.dmg, this.type, {splash:true, radius:40, splashPct:0.5}));
+          tBullets.push(new TBullet(this.x,this.y,target,dmg, this.type, {splash:true, radius:40, splashPct:0.5}));
         } else if (s.special==='chain'){
-          tBullets.push(new TBullet(this.x,this.y,target,s.dmg, this.type, {chain:true, range:110, chainPct:0.6}));
+          tBullets.push(new TBullet(this.x,this.y,target,dmg, this.type, {chain:true, range:110, chainPct:0.6}));
         } else {
-          tBullets.push(new TBullet(this.x,this.y,target,s.dmg, this.type));
+          tBullets.push(new TBullet(this.x,this.y,target,dmg, this.type));
         }
-        this.cool = s.rof;
+        this.cool = rof;
       }
       draw(){
         const s = statsFor(this.type);
         ctx.fillStyle = s.color;
         ctx.fillRect(this.x-10, this.y-10, 20, 20);
+        
+        // Draw affix border
+        if (this.affixes.length > 0) {
+          const borderColor = this.affixes.length >= 2 ? '#ffd700' : '#4ecdc4';
+          ctx.strokeStyle = borderColor;
+          ctx.lineWidth = 2;
+          ctx.strokeRect(this.x-10, this.y-10, 20, 20);
+        }
+        
         ctx.fillStyle='#000'; ctx.fillRect(this.x-12, this.y+12, 24, 4);
         ctx.fillStyle='#4caf50'; ctx.fillRect(this.x-12, this.y+12, 24*(this.hp/this.maxHP), 4);
       }
     }
 
     class Enemy {
-      constructor(isBoss=false, scale=1, affix=null){
+      constructor(isBoss=false, scale=1, affix=null, pathIndex=null){
         this.isBoss=isBoss; this.i=0; this.affix=affix;
-        this.x=path[0].x; this.y=path[0].y;
+        this.pathIndex = pathIndex !== null ? pathIndex : Math.floor(Math.random() * paths.length);
+        this.path = paths[this.pathIndex];
+        this.x=this.path[0].x; this.y=this.path[0].y;
 
         const baseHP = isBoss ? 1200 : 160;
         const baseSPD = isBoss ? 0.85 : 0.9;
@@ -189,7 +326,7 @@
         this.applyDOTs();
         this.tickRegen();
 
-        const nxt = path[this.i+1];
+        const nxt = this.path[this.i+1];
         if (!nxt){
           baseHealth -= this.isBoss?Math.ceil(18 * dmgMultForRound(round)):10;
           const idx=enemies.indexOf(this); if (idx>=0) enemies.splice(idx,1);
@@ -330,7 +467,31 @@
     }
 
     let lastPlaceAt = 0;
+    let pickedUpLoot = null;
+    
     function placeAt(x,y){
+      // Check if clicking near loot
+      for (let i = lootDrops.length - 1; i >= 0; i--) {
+        const loot = lootDrops[i];
+        if (loot.isNear(x, y)) {
+          pickedUpLoot = loot;
+          lootDrops.splice(i, 1);
+          towerType = loot.type;
+          toggleBtn.textContent = towerLabel(towerType) + (loot.affixes.length > 0 ? ' +' + loot.affixes.length : '');
+          return;
+        }
+      }
+      
+      // Place tower (from loot or regular)
+      if (pickedUpLoot) {
+        const t = new Tower(x, y, pickedUpLoot.type, pickedUpLoot.affixes);
+        towers.push(t);
+        pickedUpLoot = null;
+        toggleBtn.textContent = towerLabel(towerType);
+        return;
+      }
+      
+      // Regular tower placement
       const s = statsFor(towerType);
       if (points<s.cost) return;
       const t = new Tower(x,y,towerType);
@@ -349,9 +510,11 @@
 
     function drawPath(){
       ctx.strokeStyle='rgba(255,255,255,0.22)'; ctx.lineWidth=18; ctx.lineCap='round';
-      ctx.beginPath(); ctx.moveTo(path[0].x,path[0].y);
-      for (let i=1;i<path.length;i++) ctx.lineTo(path[i].x,path[i].y);
-      ctx.stroke();
+      for (const path of paths) {
+        ctx.beginPath(); ctx.moveTo(path[0].x, path[0].y);
+        for (let i=1; i<path.length; i++) ctx.lineTo(path[i].x, path[i].y);
+        ctx.stroke();
+      }
     }
 
     function loop(){
@@ -359,18 +522,45 @@
       drawPath();
 
       for (const e of [...enemies]) e.update();
-      for (let i=enemies.length-1;i>=0;i--){ if (enemies[i].hp<=0){ points += enemies[i].isBoss?60:15; enemies.splice(i,1); } }
+      for (let i=enemies.length-1;i>=0;i--){
+        if (enemies[i].hp<=0){
+          const e = enemies[i];
+          points += e.isBoss ? 60 : 15;
+          
+          // Drop loot chance
+          const dropChance = e.isBoss ? 0.8 : 0.25;
+          if (Math.random() < dropChance) {
+            const lootType = ORDER[Math.floor(Math.random() * ORDER.length)];
+            const lootAffixes = rollTowerAffixes(e.isBoss);
+            lootDrops.push(new TowerLoot(e.x, e.y, lootType, lootAffixes));
+          }
+          
+          enemies.splice(i,1);
+        }
+      }
       for (const t of towers) t.update();
       for (const b of [...tBullets]) b.update();
       for (const b of [...eBullets]) b.update();
+      for (const l of lootDrops) l.update();
 
       for (const t of towers) t.draw();
+      for (const l of lootDrops) l.draw();
       for (const b of tBullets) b.draw();
       for (const b of eBullets) b.draw();
       for (const e of enemies) e.draw();
 
       updateStartButton();
-      hud.textContent = `Points: ${points} | Base Health: ${baseHealth} | Rift: ${round} ${spawning?'(spawning…)':(canStartRound()?'(ready)':'')}`;
+      let hudText = `Points: ${points} | Base Health: ${baseHealth} | Rift: ${round} ${spawning?'(spawning…)':(canStartRound()?'(ready)':'')}`;
+      if (pickedUpLoot) {
+        hudText += ` | LOOT: ${pickedUpLoot.type.toUpperCase()}`;
+        if (pickedUpLoot.affixes.length > 0) {
+          hudText += ' [' + pickedUpLoot.affixes.map(a => a.name).join(', ') + ']';
+        }
+        hudText += ' - Click to place';
+      } else if (lootDrops.length > 0) {
+        hudText += ` | ${lootDrops.length} Loot drop(s) available`;
+      }
+      hud.textContent = hudText;
 
       if (baseHealth<=0){
         ctx.fillStyle='red'; ctx.font='40px Arial'; ctx.fillText('Rift Closed — You Died', width/2-190, height/2);
