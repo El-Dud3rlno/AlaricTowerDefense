@@ -3,581 +3,2097 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
-  <title>TD — Rifts: Boss-Only Shooters</title>
+  <title>Alaric TD — Loot Rifts (Inventory-Only)</title>
   <style>
-    html, body { margin:0; padding:0; overflow:hidden; background:#111; }
+    html, body { margin:0; padding:0; overflow:hidden; background:#0f0f12; }
     canvas { display:block; touch-action:none; }
+
+    /* HUD */
     #ui {
-      position:absolute; top:10px; left:10px; color:#fff;
+      position:absolute; top:10px; left:10px; right:10px;
+      color:#fff;
       font-family:system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
-      font-size:18px; z-index:5;
-      background:rgba(0,0,0,0.45); padding:10px; border-radius:8px; border:1px solid #666;
+      z-index:10;
       user-select:none;
+      pointer-events:none;
     }
-    #ui .row { display:flex; gap:8px; align-items:center; margin-top:8px; }
-    #ui button {
-      font-size:18px; padding:6px 12px; background:#333; color:#fff;
-      border:1px solid #888; border-radius:6px; cursor:pointer;
+    #hud {
+      background:rgba(0,0,0,0.55);
+      border:1px solid rgba(255,255,255,0.18);
+      border-radius:12px;
+      padding:10px 12px;
+      max-width: 980px;
+      line-height:1.35;
+      pointer-events:auto;
     }
-    #ui button[disabled] { opacity:0.5; cursor:not-allowed; }
+    #row {
+      display:flex; flex-wrap:wrap; gap:8px; margin-top:8px; align-items:center;
+      pointer-events:auto;
+    }
+    button {
+      font-size:15px;
+      padding:8px 12px;
+      background:#22252a;
+      color:#fff;
+      border:1px solid rgba(255,255,255,0.20);
+      border-radius:10px;
+      cursor:pointer;
+    }
+    button[disabled]{ opacity:0.5; cursor:not-allowed; }
+    .pill {
+      display:inline-flex; align-items:center; gap:8px;
+      padding:7px 10px;
+      border-radius:999px;
+      border:1px solid rgba(255,255,255,0.16);
+      background:rgba(255,255,255,0.06);
+      font-size:13px;
+      opacity:0.95;
+    }
+    .muted { color: rgba(255,255,255,0.80); opacity:1; }
+
+    .statLine{ color:#cfe8ff; }
+    .roleLine{ color:#ffe6a6; }
+
+    .affix{ color:#fff; }
+
+    /* Affix color coding */
+    .affix-chain{ border-color: rgba(246,224,94,0.75); background: rgba(246,224,94,0.16); }
+    .affix-splash{ border-color: rgba(255,154,91,0.80); background: rgba(255,154,91,0.16); }
+    .affix-burn{ border-color: rgba(255,92,92,0.85); background: rgba(255,92,92,0.16); }
+    .affix-slow{ border-color: rgba(105,210,255,0.85); background: rgba(105,210,255,0.16); }
+    .affix-poison{ border-color: rgba(54,209,90,0.85); background: rgba(54,209,90,0.16); }
+    .affix-crit{ border-color: rgba(255,126,214,0.85); background: rgba(255,126,214,0.14); }
+    .affix-tank{ border-color: rgba(255,215,0,0.95); background: rgba(255,215,0,0.14); }
+    .affix-stat{ border-color: rgba(200,200,200,0.55); background: rgba(255,255,255,0.08); }
+
+    /* Inventory + Tower panel */
+    #panelWrap{
+      position:absolute;
+      left:10px; right:10px;
+      bottom:10px;
+      display:flex;
+      gap:10px;
+      align-items:flex-end;
+      pointer-events:none;
+      z-index:11;
+    }
+    .panel{
+      pointer-events:auto;
+      background:rgba(0,0,0,0.62);
+      border:1px solid rgba(255,255,255,0.18);
+      border-radius:12px;
+      padding:10px;
+      backdrop-filter: blur(2px);
+      max-width: 980px;
+      width: min(980px, calc(100vw - 20px));
+    }
+    #invList{
+      display:flex;
+      flex-wrap:wrap;
+      gap:8px;
+      max-height: 28vh;
+      overflow:auto;
+      padding-right:4px;
+    }
+    .invItem{
+      display:flex;
+      flex-direction:column;
+      gap:4px;
+      min-width: 150px;
+      max-width: 220px;
+      padding:8px 10px;
+      border-radius:12px;
+      border:1px solid rgba(255,255,255,0.14);
+      background:rgba(255,255,255,0.06);
+      cursor:pointer;
+    }
+    .invItem.selected{
+      outline:2px solid rgba(255,255,255,0.55);
+      background:rgba(255,255,255,0.10);
+    }
+    .invTitle{
+      font-weight:650;
+      display:flex;
+      justify-content:space-between;
+      gap:8px;
+      align-items:center;
+    }
+    .tag{
+      font-size:11px;
+      padding:2px 8px;
+      border-radius:999px;
+      border:1px solid rgba(255,255,255,0.18);
+      background:rgba(0,0,0,0.25);
+      opacity:0.95;
+      white-space:nowrap;
+    }
+    .invAffixes{
+      font-size:12px;
+      opacity:0.95;
+      line-height:1.25;
+      word-break:break-word;
+    }
+    .affix {
+      display:inline-block;
+      padding:1px 6px;
+      margin:2px 4px 0 0;
+      border-radius:999px;
+      border:1px solid rgba(255,255,255,0.16);
+      background:rgba(255,255,255,0.06);
+    }
+
+    #towerPanel{
+      margin-top:10px;
+      display:none;
+    }
+    #towerPanel .row2{
+      display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin-top:8px;
+    }
+
+    .hidden{display:none !important;}
+
+
+    /* Left toolbar */
+    #toolbar{
+      position:absolute;
+      left:10px;
+      top:50%;
+      transform:translateY(-50%);
+      display:flex;
+      flex-direction:column;
+      gap:8px;
+      z-index:20;
+      pointer-events:auto;
+    }
+    #toolbar .tb{
+      width:44px; height:44px;
+      display:flex; align-items:center; justify-content:center;
+      border-radius:14px;
+      font-size:20px;
+      background:rgba(0,0,0,0.62);
+      border:1px solid rgba(255,255,255,0.18);
+      color:#fff;
+      cursor:pointer;
+    }
+    #toolbar .tb.active{
+      outline:2px solid rgba(255,255,255,0.55);
+      background:rgba(255,255,255,0.10);
+    }
+
+    #toast{
+      position:absolute;
+      left:50%;
+      transform:translateX(-50%);
+      bottom: calc(10px + 30vh);
+      background:rgba(0,0,0,0.70);
+      border:1px solid rgba(255,255,255,0.22);
+      padding:10px 14px;
+      border-radius:12px;
+      font-size:14px;
+      pointer-events:none;
+      opacity:0;
+      transition: opacity 160ms ease;
+      z-index:12;
+      max-width: 90vw;
+      text-align:center;
+    }
   </style>
 </head>
 <body>
+
+  <div id="toolbar">
+    <button class="tb" id="tbAll" title="Toggle all UI">👁</button>
+    <button class="tb" id="tbHud" title="Toggle HUD">📊</button>
+    <button class="tb" id="tbInv" title="Toggle Inventory">🎒</button>
+    <button class="tb" id="tbTips" title="Toggle Tips text">💡</button>
+  </div>
+
   <div id="ui">
-    <div id="hud">Loading…</div>
-    <div class="row">
-      <button id="toggle">Tower: Fast (25)</button>
-      <button id="startRound">Start Rift</button>
+    <div id="hud">
+      <div id="hudText">Loading…</div>
+      <div id="row">
+        <button id="startRound">Start Rift</button>
+        <button id="speed">Speed: 1×</button>
+        <button id="restart">Restart</button>
+        <span id="hintPill" class="pill">Loot-only towers • Placement is king • Tap tower to repair/upgrade (between rifts)</span>
+      </div>
     </div>
   </div>
+
+  <div id="panelWrap">
+    <div class="panel">
+      <div class="muted" style="margin-bottom:6px;">
+        <b>Inventory</b> — Tap an item to select, then tap the battlefield to place. Loot drops appear on the map as <b>?</b> boxes.
+      </div>
+      <div id="invList"></div>
+
+      <div id="towerPanel">
+        <hr style="border:none;border-top:1px solid rgba(255,255,255,0.14);margin:10px 0;">
+        <div><b>Selected Tower</b> <span class="muted">(between rifts only)</span></div>
+        <div id="towerInfo" class="muted" style="margin-top:6px;"></div>
+        <div class="row2">
+          <button id="repairBtn">Repair</button>
+          <button id="upgradeBtn">Upgrade</button>
+          <span id="towerHint" class="pill muted">Tap a tower to select it</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="toast"></div>
   <canvas id="gameCanvas"></canvas>
-  <script>
-    const canvas = document.getElementById('gameCanvas');
-    const ctx = canvas.getContext('2d');
-    const hud = document.getElementById('hud');
-    const toggleBtn = document.getElementById('toggle');
-    const startBtn = document.getElementById('startRound');
 
-    let width = window.innerWidth, height = window.innerHeight;
+<script>
+(() => {
+  // ========= Canvas / UI =========
+  const canvas = document.getElementById('gameCanvas');
+  const ctx = canvas.getContext('2d');
+  const hudText = document.getElementById('hudText');
+  const startBtn = document.getElementById('startRound');
+  const speedBtn = document.getElementById('speed');
+  const restartBtn = document.getElementById('restart');
+
+  const invListEl = document.getElementById('invList');
+  const towerPanelEl = document.getElementById('towerPanel');
+  const towerInfoEl = document.getElementById('towerInfo');
+  const repairBtn = document.getElementById('repairBtn');
+  const upgradeBtn = document.getElementById('upgradeBtn');
+  const toastEl = document.getElementById('toast');
+  const panelWrapEl = document.getElementById('panelWrap');
+  const hintPillEl = document.getElementById('hintPill');
+  const tbAll = document.getElementById('tbAll');
+  const tbHud = document.getElementById('tbHud');
+  const tbInv = document.getElementById('tbInv');
+  const tbTips = document.getElementById('tbTips');
+  const uiRootEl = document.getElementById('ui');
+
+  // UI visibility preferences (persisted)
+  const uiState = (() => {
+    try {
+      const raw = localStorage.getItem('alaric_ui_state_v1');
+      if (raw) return Object.assign({ all:true, hud:true, inv:true, tips:true, invWanted:true }, JSON.parse(raw));
+    } catch(e){}
+    return { all:true, hud:true, inv:true, tips:true, invWanted:true };
+  })();
+
+  function saveUIState(){
+    try { localStorage.setItem('alaric_ui_state_v1', JSON.stringify(uiState)); } catch(e){}
+  }
+
+  function applyUIVisibility(){
+    // "all" toggles everything except toolbar
+    if (uiRootEl) uiRootEl.classList.toggle('hidden', !uiState.all || !uiState.hud);
+    if (panelWrapEl) panelWrapEl.classList.toggle('hidden', !uiState.all || !uiState.inv);
+    if (hintPillEl) hintPillEl.classList.toggle('hidden', !uiState.all || !uiState.tips);
+
+    // Active indicator shows "visible"
+    tbAll && tbAll.classList.toggle('active', uiState.all);
+    tbHud && tbHud.classList.toggle('active', uiState.hud && uiState.all);
+    tbInv && tbInv.classList.toggle('active', uiState.inv && uiState.all);
+    tbTips && tbTips.classList.toggle('active', uiState.tips && uiState.all);
+  }
+
+  // Toolbar interactions
+  tbAll && (tbAll.onclick = () => {
+    uiState.all = !uiState.all;
+    saveUIState(); applyUIVisibility();
+  });
+
+  tbHud && (tbHud.onclick = () => {
+    uiState.hud = !uiState.hud;
+    if (!uiState.hud) uiState.all = true; // keep toolbar usable; 'all' is master for bulk, not required
+    saveUIState(); applyUIVisibility();
+  });
+
+  tbInv && (tbInv.onclick = () => {
+    uiState.inv = !uiState.inv;
+    uiState.invWanted = uiState.inv; // what user wants outside combat
+    saveUIState(); applyUIVisibility();
+  });
+
+  tbTips && (tbTips.onclick = () => {
+    uiState.tips = !uiState.tips;
+    saveUIState(); applyUIVisibility();
+  });
+
+
+  let width = window.innerWidth, height = window.innerHeight;
+  canvas.width = width; canvas.height = height;
+
+  function toast(msg){
+    toastEl.textContent = msg;
+    toastEl.style.opacity = 1;
+    clearTimeout(toastEl._t);
+    toastEl._t = setTimeout(() => toastEl.style.opacity = 0, 1150);
+  }
+
+  let timeScale = 1;
+  speedBtn.onclick = () => {
+    timeScale = (timeScale === 1) ? 2 : 1;
+    speedBtn.textContent = `Speed: ${timeScale}×`;
+    toast(`Speed set to ${timeScale}×`);
+  };
+
+  window.addEventListener('resize', () => {
+    width = window.innerWidth; height = window.innerHeight;
     canvas.width = width; canvas.height = height;
-    window.addEventListener('resize', () => {
-      width = window.innerWidth; height = window.innerHeight;
-      canvas.width = width; canvas.height = height;
-      makePath();
-    });
+    makePaths();
+  });
 
-    const TOWER_INFO = {
-      fast:      { cost:25,  dmg:6,  rof:14,  color:'blue',      baseHP:70,  special:null },
-      heavy:     { cost:50,  dmg:32, rof:48,  color:'red',       baseHP:120, special:'splash' },
-      dual:      { cost:100, dmg:10, rof:26,  color:'purple',    baseHP:105, special:'dual'  },
-      fire:      { cost:40,  dmg:8,  rof:22,  color:'#ff6b3a',   baseHP:90,  special:'burn' },
-      ice:       { cost:35,  dmg:6,  rof:20,  color:'#69d2ff',   baseHP:85,  special:'slow' },
-      lightning: { cost:45,  dmg:12, rof:24,  color:'#f6e05e',   baseHP:95,  special:'chain' },
-      poison:    { cost:40,  dmg:7,  rof:22,  color:'#32cd32',   baseHP:90,  special:'poison' }
-    };
-    const ORDER = ['fast','heavy','dual','fire','ice','lightning','poison'];
-    function statsFor(type){ return TOWER_INFO[type]; }
-    function towerLabel(type){ return 'Tower: ' + type.charAt(0).toUpperCase()+type.slice(1) + ' ('+statsFor(type).cost+')'; }
+  // ========= Game State =========
+  const towers = [];
+  const enemies = [];
+  const tBullets = [];
+  const eBullets = [];
+  const lootDrops = [];
 
-    let towerType = 'fast';
-    toggleBtn.onclick = () => {
-      const i = ORDER.indexOf(towerType);
-      towerType = ORDER[(i+1)%ORDER.length];
-      toggleBtn.textContent = towerLabel(towerType);
-    };
+  
 
-    const towers = [], enemies = [], tBullets = [], eBullets = [], lootDrops = [];
-    let points = 150, baseHealth = 150, round = 0;
-    let spawning = false;
+// ========= Lightweight VFX (visual feedback) =========
+  const vfx = []; // transient visual effects
 
-    let paths = [];
-    function makePath(){
-      // Create 4 distinct paths with varying crossings
-      paths = [
-        // Path 1: Top route with crossings
-        [
-          {x: 10,            y: height*0.25},
-          {x: width*0.20,    y: height*0.25},
-          {x: width*0.35,    y: height*0.50},  // crossing point
-          {x: width*0.50,    y: height*0.25},
-          {x: width*0.70,    y: height*0.25},
-          {x: width*0.85,    y: height*0.50},  // crossing point
-          {x: width-10,      y: height*0.50}
-        ],
-        // Path 2: Bottom route
-        [
-          {x: 10,            y: height*0.75},
-          {x: width*0.25,    y: height*0.75},
-          {x: width*0.35,    y: height*0.50},  // crossing point
-          {x: width*0.50,    y: height*0.75},
-          {x: width*0.75,    y: height*0.75},
-          {x: width*0.85,    y: height*0.50},  // crossing point
-          {x: width-10,      y: height*0.50}
-        ],
-        // Path 3: Middle serpentine
-        [
-          {x: 10,            y: height*0.50},
-          {x: width*0.20,    y: height*0.50},
-          {x: width*0.35,    y: height*0.35},
-          {x: width*0.50,    y: height*0.50},
-          {x: width*0.65,    y: height*0.65},
-          {x: width*0.85,    y: height*0.50},
-          {x: width-10,      y: height*0.50}
-        ],
-        // Path 4: Zigzag route
-        [
-          {x: 10,            y: height*0.40},
-          {x: width*0.20,    y: height*0.60},
-          {x: width*0.35,    y: height*0.40},
-          {x: width*0.50,    y: height*0.60},
-          {x: width*0.65,    y: height*0.40},
-          {x: width*0.80,    y: height*0.60},
-          {x: width-10,      y: height*0.50}
-        ]
-      ];
-    }
-    makePath();
-
-    // Rift scaling
-    function hpMultForRound(r){ return Math.pow(1.12, r); }
-    function spdMultForRound(r){ return Math.min(1 + 0.015*r, 1.6); }
-    function dmgMultForRound(r){ return 1 + 0.08*r; }
-    function countForRound(r){ return 6 + Math.floor(r*1.6); }
-    function spawnGapForRound(r){ return Math.max(250, 700 * Math.pow(0.96, r)); }
-
-    // Elites
-    const AFFIXES = ['fast','armored','regen','shielded'];
-    function rollAffix(){
-      if (Math.random() < Math.min(0.10 + round*0.01, 0.35)) {
-        return AFFIXES[Math.floor(Math.random()*AFFIXES.length)];
+  class VFXArc {
+    constructor(x1,y1,x2,y2,life=18){
+      this.x1=x1; this.y1=y1; this.x2=x2; this.y2=y2;
+      this.life=life; this.max=life;
+      this.pts = [];
+      const seg = 7;
+      for (let i=0;i<=seg;i++){
+        const t = i/seg;
+        const x = x1 + (x2-x1)*t;
+        const y = y1 + (y2-y1)*t;
+        const jitter = (i===0||i===seg) ? 0 : 10;
+        this.pts.push({x: x + (Math.random()*2-1)*jitter, y: y + (Math.random()*2-1)*jitter});
       }
-      return null;
+    }
+    update(dt){ this.life -= dt; }
+    draw(){
+      const a = Math.max(0, this.life/this.max);
+      ctx.save();
+      ctx.globalAlpha = 0.75 * a;
+      ctx.lineWidth = 2.5;
+      ctx.strokeStyle = 'rgba(140,220,255,0.95)';
+      ctx.beginPath();
+      ctx.moveTo(this.pts[0].x, this.pts[0].y);
+      for (let i=1;i<this.pts.length;i++) ctx.lineTo(this.pts[i].x, this.pts[i].y);
+      ctx.stroke();
+      ctx.globalAlpha = 0.35 * a;
+      ctx.lineWidth = 5.5;
+      ctx.strokeStyle = 'rgba(255,215,120,0.85)';
+      ctx.beginPath();
+      ctx.moveTo(this.pts[0].x, this.pts[0].y);
+      for (let i=1;i<this.pts.length;i++) ctx.lineTo(this.pts[i].x, this.pts[i].y);
+      ctx.stroke();
+      ctx.restore();
+    }
+  }
+
+  class VFXRing {
+    constructor(x,y,r0,r1,color,life=26){
+      this.x=x; this.y=y; this.r0=r0; this.r1=r1;
+      this.life=life; this.max=life;
+      this.color=color;
+    }
+    update(dt){ this.life -= dt; }
+    draw(){
+      const t = 1 - Math.max(0, this.life/this.max);
+      const r = this.r0 + (this.r1-this.r0)*t;
+      const a = Math.max(0, this.life/this.max);
+      ctx.save();
+      ctx.globalAlpha = 0.55 * a;
+      ctx.strokeStyle = this.color;
+      ctx.lineWidth = 3;
+      ctx.beginPath(); ctx.arc(this.x,this.y,r,0,Math.PI*2); ctx.stroke();
+      ctx.globalAlpha = 0.18 * a;
+      ctx.fillStyle = this.color;
+      ctx.beginPath(); ctx.arc(this.x,this.y,r*0.75,0,Math.PI*2); ctx.fill();
+      ctx.restore();
+    }
+  }
+
+  class VFXPuddle {
+    constructor(x,y,r,color,life=120){
+      this.x=x; this.y=y; this.r=r;
+      this.life=life; this.max=life;
+      this.color=color;
+      this.pulse = Math.random()*10;
+    }
+    update(dt){ this.life -= dt; this.pulse += 0.02*dt; }
+    draw(){
+      const a = Math.max(0, this.life/this.max);
+      const wob = 1 + 0.05*Math.sin(this.pulse);
+      ctx.save();
+      ctx.globalAlpha = 0.28 * a;
+      ctx.fillStyle = this.color;
+      ctx.beginPath();
+      ctx.ellipse(this.x,this.y,this.r*wob,this.r*0.75*wob,0,0,Math.PI*2);
+      ctx.fill();
+      ctx.globalAlpha = 0.55 * a;
+      ctx.strokeStyle = this.color;
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.ellipse(this.x,this.y,this.r*wob,this.r*0.75*wob,0,0,Math.PI*2);
+      ctx.stroke();
+      ctx.restore();
+    }
+  }
+
+  class VFXEmbers {
+    constructor(x,y,color,life=28){
+      this.x=x; this.y=y; this.life=life; this.max=life;
+      this.color=color;
+      this.p = Array.from({length: 7}, ()=>({
+        x: x + (Math.random()*2-1)*8,
+        y: y + (Math.random()*2-1)*8,
+        vx: (Math.random()*2-1)*0.35,
+        vy: -0.55 - Math.random()*0.65,
+        r: 1.5 + Math.random()*2.5
+      }));
+    }
+    update(dt){
+      this.life -= dt;
+      for (const q of this.p){
+        q.x += q.vx*dt*6;
+        q.y += q.vy*dt*6;
+        q.vy += 0.02*dt*6;
+      }
+    }
+    draw(){
+      const a = Math.max(0, this.life/this.max);
+      ctx.save();
+      ctx.globalAlpha = 0.65 * a;
+      ctx.fillStyle = this.color;
+      for (const q of this.p){
+        ctx.beginPath(); ctx.arc(q.x,q.y,q.r,0,Math.PI*2); ctx.fill();
+      }
+      ctx.restore();
+    }
+  }
+
+  function vfxUpdate(dt){
+    for (let i=vfx.length-1;i>=0;i--){
+      vfx[i].update(dt);
+      if (vfx[i].life <= 0) vfx.splice(i,1);
+    }
+  }
+  function vfxDraw(){
+    for (const fx of vfx) fx.draw();
+  }
+
+let gold = 150;
+  let baseHealth = 150;
+  let rift = 0;
+    let totalUpgradesSpent = 0; // run-wide upgrade investment for scaling
+let spawning = false;
+  let dropsThisRift = 0; // loot smoothing per rift
+
+  // Intermission is simply: no enemies, not spawning, base alive
+  function inIntermission(){
+    return !spawning && enemies.length === 0 && baseHealth > 0;
+  }
+
+  function setCombatUI(){
+    const combat = !inIntermission();
+
+    // Force-hide inventory during combat to prevent overlap, but remember user preference.
+    if (combat){
+      if (panelWrapEl) panelWrapEl.classList.add('hidden');
+      uiState && (uiState.invWanted = uiState.inv); // remember preference
+    } else {
+      // Restore inventory visibility based on user's toggle
+      if (uiState) uiState.inv = uiState.invWanted;
     }
 
-    // Tower Affixes (Diablo-style loot system)
-    const TOWER_AFFIXES = [
-      { name: 'Powerful', stat: 'dmg', mult: 1.25, color: '#ff6b6b' },
-      { name: 'Swift', stat: 'rof', mult: 0.80, color: '#4ecdc4' }, // Lower rof = faster attacks
-      { name: 'Precise', stat: 'range', mult: 1.30, color: '#ffe66d' },
-      { name: 'Resilient', stat: 'hp', mult: 1.40, color: '#95e1d3' },
-      { name: 'Deadly', stat: 'dmg', mult: 1.50, color: '#f38181' },
-      { name: 'Rapid', stat: 'rof', mult: 0.65, color: '#48dbfb' }, // Lower rof = faster attacks
-      { name: 'Fortified', stat: 'hp', mult: 1.70, color: '#a8e6cf' },
-      { name: 'Sharpshooter', stat: 'range', mult: 1.50, color: '#ffd93d' }
+    if (hintPillEl){
+      hintPillEl.textContent = combat
+        ? 'Combat: loot drops are picked up by tapping ? boxes on the map'
+        : 'Loot-only towers • Placement is king • Tap tower to repair/upgrade (between rifts)';
+    }
+
+    applyUIVisibility();
+  }
+
+  // ========= Paths: bottom-to-top trunk -> 4 lanes with crossings -> converge =========
+  let paths = [];
+  let objective = {x:0,y:0};
+
+  function makePaths(){
+    const pad = 18;
+    const xC = width * 0.5;
+    const yStart = height - pad;
+    const yEnd   = pad;
+
+    objective = { x: xC, y: yEnd };
+
+    const trunk1 = { x: xC, y: height * 0.82 };
+    const trunk2 = { x: xC, y: height * 0.68 };
+
+    const splitL = { x: width*0.34, y: height*0.58 };
+    const splitR = { x: width*0.66, y: height*0.58 };
+
+    const crossA = { x: width*0.50, y: height*0.47 };
+    const crossB = { x: width*0.50, y: height*0.36 };
+
+    const lane1a = { x: width*0.18, y: height*0.48 };
+    const lane1b = { x: width*0.22, y: height*0.34 };
+
+    const lane2a = { x: width*0.38, y: height*0.48 };
+    const lane2b = { x: width*0.42, y: height*0.34 };
+
+    const lane3a = { x: width*0.62, y: height*0.48 };
+    const lane3b = { x: width*0.58, y: height*0.34 };
+
+    const lane4a = { x: width*0.82, y: height*0.48 };
+    const lane4b = { x: width*0.78, y: height*0.34 };
+
+    const converge1 = { x: xC, y: height*0.22 };
+    const converge2 = { x: xC, y: height*0.12 };
+
+    paths = [
+      [ {x:xC,y:yStart}, trunk1, trunk2, splitL, lane1a, crossA, lane1b, crossB, converge1, converge2, {x:xC,y:yEnd} ],
+      [ {x:xC,y:yStart}, trunk1, trunk2, splitL, lane2a, crossA, lane2b, crossB, converge1, converge2, {x:xC,y:yEnd} ],
+      [ {x:xC,y:yStart}, trunk1, trunk2, splitR, lane3a, crossA, lane3b, crossB, converge1, converge2, {x:xC,y:yEnd} ],
+      [ {x:xC,y:yStart}, trunk1, trunk2, splitR, lane4a, crossA, lane4b, crossB, converge1, converge2, {x:xC,y:yEnd} ],
     ];
+  }
+  makePaths();
 
-    function rollTowerAffixes(isBoss = false) {
-      const affixCount = isBoss ? Math.floor(Math.random() * 2) + 2 : Math.random() < 0.4 ? 1 : 0; // bosses: 2-3 affixes, regular: 0-1 affixes
-      if (affixCount === 0) return [];
-      
-      const rolled = [];
-      const available = [...TOWER_AFFIXES];
-      for (let i = 0; i < affixCount && available.length > 0; i++) {
-        const idx = Math.floor(Math.random() * available.length);
-        rolled.push(available[idx]);
-        available.splice(idx, 1);
-      }
-      return rolled;
+  // ========= Loot-only Inventory =========
+  const inventory = []; // { id, frame, stats, affixes, tier }
+  let selectedInvId = null;
+
+  function rand(a,b){ return a + Math.random()*(b-a); }
+  function randi(a,b){ return Math.floor(a + Math.random()*(b-a+1)); }
+  function clamp(v,a,b){ return Math.max(a, Math.min(b, v)); }
+
+  const FRAME = {
+    light: { label:'Light', baseHP: 70, baseDmg: 7.5, baseRof: 14, baseRange: 125, baseThreat: 1.0, color:'#5aa7ff' },
+    heavy: { label:'Heavy', baseHP: 140, baseDmg: 6.0, baseRof: 18, baseRange: 120, baseThreat: 1.35, color:'#ff6b6b' }
+  };
+
+  // Affixes are behavior-first. Each affix can:
+  // - modify stats (multipliers)
+  // - add behavior tags (chain/splash/burn/slow/poison)
+  // - modify threat (tank)
+  const AFFIX_POOL_COMMON = [
+    { key:'power', name:'Powerful', kind:'stat', stat:'dmg', mult:1.30 },
+    { key:'swift', name:'Swift', kind:'stat', stat:'rof', mult:0.80 },
+    { key:'precise', name:'Precise', kind:'stat', stat:'range', mult:1.30 },
+    { key:'resilient', name:'Resilient', kind:'stat', stat:'hp', mult:1.35 },
+    { key:'chain', name:'Chain', kind:'behavior', tag:'chain', data:{range:120, pct:0.60} },
+    { key:'splash', name:'Splash', kind:'behavior', tag:'splash', data:{radius:46, pct:0.50} },
+    { key:'burn', name:'Burn', kind:'behavior', tag:'burn', data:{ticks:32, dps:1.6} },
+    { key:'slow', name:'Frost', kind:'behavior', tag:'slow', data:{ticks:60, mult:0.55} },
+    { key:'poison', name:'Poison', kind:'behavior', tag:'poison', data:{ticks:95, dps:0.85, bossMult:1.5} },
+    { key:'sanctuary', name:'Sanctuary', kind:'behavior', tag:'support', data:{ pulse:240, healPct:0.08, dmgBuff:1.25, buffDur:180 } },
+    { key:'crit', name:'Crit', kind:'behavior', tag:'crit', data:{chance:0.12, mult:1.7} },
+  ];
+
+  // Tank affix is rare and ONLY for heavy frame (as per your direction).
+  const AFFIX_TANK = {
+    key:'guardian', name:'Guardian', kind:'tank', tag:'tank',
+    data:{ threatMult:4.5, tauntRadius:140, tauntEvery:180, dmgMult:0.60, dmgTakenMult:0.70 }
+  };
+
+  function pickUnique(pool, n){
+    const a = pool.slice();
+    const out = [];
+    for (let i=0; i<n && a.length>0; i++){
+      const idx = Math.floor(Math.random()*a.length);
+      out.push(a[idx]);
+      a.splice(idx,1);
+    }
+    return out;
+  }
+
+  function computeTier(affixCount, hasTank){
+    if (hasTank) return 'Epic';
+    if (affixCount >= 3) return 'Epic';
+    if (affixCount === 2) return 'Rare';
+    return 'Common';
+  }
+
+  function genTowerItem(isBossDrop=false){
+    // Frame roll: mostly light, some heavy; boss has better odds for heavy
+    const heavyChance = isBossDrop ? 0.45 : 0.22;
+    let frame = (Math.random() < heavyChance) ? 'heavy' : 'light';
+
+    // Tank affix: rare; only heavy; boss increases chance
+    const tankChance = isBossDrop ? 0.12 : 0.04;
+    const willTank = (frame==='heavy') && (Math.random() < tankChance);
+
+    // Affix count: boss 2-3; regular 1-2, sometimes 0
+    const affixCount = isBossDrop ? randi(2,3) : (Math.random()<0.15 ? 0 : (Math.random()<0.70 ? 1 : 2));
+    let affixes = [];
+    if (affixCount>0) affixes = pickUnique(AFFIX_POOL_COMMON, affixCount);
+    if (willTank){
+      // add tank affix; enforce low damage output on tanks via tank affix data (dmgMult)
+      affixes.unshift(AFFIX_TANK);
     }
 
-    class TowerLoot {
-      constructor(x, y, type, affixes = []) {
-        this.x = x;
-        this.y = y;
-        this.type = type;
-        this.affixes = affixes;
-        this.r = 12;
-        this.pulseTime = 0;
+    // Slight stat roll variance per item (keeps loot feel)
+    const f = FRAME[frame];
+    const stats = {
+      hp: Math.floor(f.baseHP * rand(0.95, 1.12)),
+      dmg: f.baseDmg * rand(0.95, 1.10),
+      rof: f.baseRof * rand(0.92, 1.08),
+      range: f.baseRange * rand(0.95, 1.10),
+      threatBase: f.baseThreat
+    };
+
+    const tier = computeTier(affixes.length, willTank);
+    return {
+      id: 'it_' + Math.random().toString(16).slice(2),
+      frame,
+      stats,
+      affixes,
+      tier
+    };
+  }
+
+  // Starter inventory so the game is playable immediately
+  function seedStarterInventory(){
+    inventory.length = 0;
+    // 4 starters: light DPS-ish, plus one heavy non-tank
+    inventory.push(genTowerItem(false));
+    inventory.push(genTowerItem(false));
+    inventory.push(genTowerItem(false));
+    let h = genTowerItem(false);
+    h.frame = 'heavy';
+    h.stats.hp = Math.floor(FRAME.heavy.baseHP * 1.05);
+    inventory.push(h);
+    selectedInvId = inventory[0]?.id ?? null;
+  }
+  seedStarterInventory();
+
+  function affixBadges(affixes){
+    if (!affixes || affixes.length===0) return '';
+    return affixes.map(a => {
+      const cls = a.tag === 'tank' ? 'affix-tank'
+               : (a.kind === 'stat' ? 'affix-stat'
+               : ('affix-' + a.tag));
+      return `<span class="affix ${cls}">${a.name}</span>`;
+    }).join('');
+  }
+
+
+  function describeBehaviors(affixes){
+    const tags = [];
+    for (const a of affixes){
+      if (a.tag==='tank') tags.push('Taunt + High Threat (low DPS)');
+      if (a.tag==='chain') tags.push('Chains to nearby enemy');
+      if (a.tag==='splash') tags.push('Splash AoE');
+      if (a.tag==='burn') tags.push('Burn DoT');
+      if (a.tag==='slow') tags.push('Slow');
+      if (a.tag==='poison') tags.push('Poison (boss bonus)');
+      if (a.tag==='crit') tags.push('Crit chance');
+    }
+    return tags.length ? tags.join(' • ') : 'Plain damage';
+  }
+
+  function itemStatLine(it){
+    // stats are already rolled; show concise
+    const s = it.stats;
+    return `HP ${Math.floor(s.hp)} • Dmg ${s.dmg.toFixed(1)} • Rof ${s.rof.toFixed(1)} • Rng ${Math.floor(s.range)}`;
+  }
+
+  function itemSummary(it){
+    const f = FRAME[it.frame];
+    const isTank = it.affixes.some(a=>a.tag==='tank');
+    const tierColor = (it.tier==='Epic') ? '#ffd700' : (it.tier==='Rare' ? '#4ecdc4' : '#c0c0c0');
+    const tags = [
+      `<span class="tag" style="border-color:${tierColor};">${it.tier}</span>`,
+      `<span class="tag">${f.label}</span>`,
+      isTank ? `<span class="tag" style="border-color:#ffd700;">Tank</span>` : ''
+    ].filter(Boolean).join(' ');
+    const aff = it.affixes.map(a=>a.name).join(', ') || 'No affixes';
+    return { tags, aff };
+  }
+
+  function renderInventory(){
+    invListEl.innerHTML = '';
+    if (inventory.length === 0){
+      invListEl.innerHTML = `<div class="muted">No items. Survive to get drops.</div>`;
+      return;
+    }
+    for (const it of inventory){
+      const div = document.createElement('div');
+      div.className = 'invItem' + (it.id===selectedInvId ? ' selected' : '');
+      const sum = itemSummary(it);
+      div.innerHTML = `
+        <div class="invTitle">
+          <span>${sum.tags}</span>
+        </div>
+        <div class="invAffixes">
+          ${affixBadges(it.affixes)}
+          <div class="statLine" style="margin-top:6px;">${itemStatLine(it)}</div>
+          <div class="roleLine" style="margin-top:4px;">${describeBehaviors(it.affixes)}</div>
+        </div>
+      `;
+      div.onclick = () => { selectedInvId = it.id; renderInventory(); };
+      invListEl.appendChild(div);
+    }
+  }
+
+  renderInventory();
+
+  function getSelectedItem(){
+    return inventory.find(x => x.id === selectedInvId) || null;
+  }
+
+  // ========= Loot Drops on map =========
+  class LootDrop {
+    constructor(x,y,item){
+      this.x=x; this.y=y;
+      this.item=item;
+      this.r=12;
+      this.pulse=0;
+    }
+    update(dt){ this.pulse += 0.05*dt; }
+    draw(){
+        drawLootChest(this.x, this.y, this.item.tier);
       }
-      
-      update() {
-        this.pulseTime += 0.05;
+    isNear(px,py, r=50){ return Math.hypot(this.x-px, this.y-py) < r; }
+  }
+
+  // ========= Towers / Combat =========
+  function applyAffixStats(base, affixes){
+    // base is {hp,dmg,rof,range,threatBase}
+    const out = {...base};
+    for (const a of affixes){
+      if (a.kind==='stat'){
+        out[a.stat] *= a.mult;
       }
-      
-      draw() {
-        const pulse = Math.sin(this.pulseTime) * 0.3 + 1;
-        const s = statsFor(this.type);
-        
-        // Draw glow
-        ctx.save();
-        ctx.globalAlpha = 0.3;
-        ctx.fillStyle = s.color;
-        ctx.beginPath();
-        ctx.arc(this.x, this.y, this.r * pulse * 1.5, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.restore();
-        
-        // Draw loot icon (larger)
-        ctx.fillStyle = s.color;
-        ctx.fillRect(this.x - 10, this.y - 10, 20, 20);
-        
-        // Draw border based on rarity (affix count)
-        const borderColor = this.affixes.length >= 2 ? '#ffd700' : this.affixes.length === 1 ? '#4ecdc4' : '#999';
-        ctx.strokeStyle = borderColor;
-        ctx.lineWidth = 3;
-        ctx.strokeRect(this.x - 10, this.y - 10, 20, 20);
-        
-        // Draw "?" text on loot
-        ctx.fillStyle = '#fff';
-        ctx.font = 'bold 14px Arial';
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        ctx.fillText('?', this.x, this.y);
-      }
-      
-      isNear(px, py, radius = 50) {
-        return Math.hypot(this.x - px, this.y - py) < radius;
+      if (a.kind==='tank'){
+        // tank reduces damage output, increases survivability handled elsewhere
+        out.dmg *= a.data.dmgMult;
       }
     }
+    out.hp = Math.floor(out.hp);
+    out.range = Math.floor(out.range);
+    return out;
+  }
 
-    class Tower {
-      constructor(x, y, type='fast', affixes=[]){
-        this.x=x; this.y=y; this.type=type; this.affixes=affixes; this.cool=0; this.range=125;
-        const s = statsFor(type);
-        this.maxHP = s.baseHP; this.hp = this.maxHP;
+  function applyGlobalTowerScaling(stats, tier){
+    // Apply per-rift multipliers to keep DPS/HP progression aligned with enemy scaling.
+    const out = { ...stats };
+
+    // Tier passive scaling: makes loot quality meaningfully impact late-game viability.
+    const tierBonus = (tier === 'Epic') ? 1.40 : (tier === 'Rare' ? 1.18 : 1.0);
+
+    out.dmg *= towerDmgMult() * tierBonus;
+    // Investment scaling: every upgrade purchased increases global tower damage (prevents boss stat-walls).
+    const investMult = 1 + (0.21 * totalUpgradesSpent);
+    out.dmg *= investMult;
+    out.hp  *= towerHpMult()  * tierBonus;
+
+    // Range scales gently with rifts; tier doesn't amplify range to avoid over-coverage snowball.
+    out.range *= towerRangeMult();
+
+    out.hp = Math.floor(out.hp);
+    out.range = Math.floor(out.range);
+    return out;
+}
+
+  function getBehavior(affixes){
+    const b = {
+      chain:null,
+      splash:null,
+      burn:null,
+      slow:null,
+      poison:null,
+      crit:null,
+      support:null,
+      tank:null
+    };
+    for (const a of affixes){
+      if (a.tag==='chain') b.chain = a.data;
+      if (a.tag==='splash') b.splash = a.data;
+      if (a.tag==='burn') b.burn = a.data;
+      if (a.tag==='slow') b.slow = a.data;
+      if (a.tag==='poison') b.poison = a.data;
+      if (a.tag==='crit') b.crit = a.data;
+      if (a.tag==='support') b.support = a.data;
+      if (a.tag==='tank') b.tank = a.data;
+    }
+    return b;
+  }
+
+  class Tower {
+    constructor(x,y,item){
+      this.x=x; this.y=y;
+      this.item = item; // store for upgrades/repairs
+      this.affixes = item.affixes.slice();
+      this.frame = item.frame;
+
+      const computed = applyGlobalTowerScaling(applyAffixStats(item.stats, this.affixes), item.tier);
+      this.maxHP = computed.hp;
+      this.hp = this.maxHP;
+
+      this.base = computed;      // dmg/rof/range/threatBase
+      this.beh = getBehavior(this.affixes);
+
+      this.cool = 0;
+      this.firePulse = 0;
+
+      this._supportCd = this.beh.support ? this.beh.support.pulse : Infinity;
+      this._dmgBuffTimer = 0;
+      this._dmgBuffMult = 1.0;
+
+      this.id = 'tw_' + Math.random().toString(16).slice(2);
+      this.threatMult = this.beh.tank ? this.beh.tank.threatMult : 1.0;
+
+      // Tank survivability adjustment
+      this.dmgTakenMult = this.beh.tank ? this.beh.tank.dmgTakenMult : 1.0;
+
+      // taunt timer
+      this.tauntCd = this.beh.tank ? this.beh.tank.tauntEvery : Infinity;
+    }
+
+    recompute(){
+      // Called after upgrade changes affixes / base stats.
+      this.item.affixes = this.affixes.slice();
+      const computed = applyGlobalTowerScaling(applyAffixStats(this.item.stats, this.affixes), this.item.tier);
+      // preserve current hp % (unless exceeds new max)
+      const pct = (this.maxHP>0) ? (this.hp/this.maxHP) : 1;
+      this.base = computed;
+      this.beh = getBehavior(this.affixes);
+      this.threatMult = this.beh.tank ? this.beh.tank.threatMult : 1.0;
+      this.dmgTakenMult = this.beh.tank ? this.beh.tank.dmgTakenMult : 1.0;
+      this.maxHP = computed.hp;
+      this.hp = clamp(this.maxHP * pct, 1, this.maxHP);
+      this.tauntCd = this.beh.tank ? this.beh.tank.tauntEvery : Infinity;
+    }
+
+    update(dt){
+      // Support pulse: periodically heals and buffs ALL towers on the board.
+      if (this._dmgBuffTimer > 0) this._dmgBuffTimer -= dt;
+
+      if (this.beh.support){
+        this._supportCd -= dt;
+        if (this._supportCd <= 0){
+          const healPct = this.beh.support.healPct || 0.06;
+          const dmgBuff = this.beh.support.dmgBuff || 1.18;
+          const dur = this.beh.support.buffDur || 150;
+
+          for (const tw of towers){
+            tw.hp = Math.min(tw.maxHP, tw.hp + tw.maxHP * healPct);
+            tw._dmgBuffMult = Math.max(tw._dmgBuffMult || 1.0, dmgBuff);
+            tw._dmgBuffTimer = Math.max(tw._dmgBuffTimer || 0, dur);
+          }
+
+          // Visual feedback (if VFX layer exists)
+          if (typeof vfx !== 'undefined'){
+            vfx.push(new VFXRing(this.x, this.y, 22, 88, 'rgba(255,215,120,0.9)', 34));
+          }
+
+          this._supportCd = this.beh.support.pulse || 240;
+        }
+      }
+
+      if (this.cool>0) this.cool -= dt;
+      if (this.firePulse>0) this.firePulse -= 0.10*dt;
+
+      // taunt pulse
+      if (this.beh.tank){
+        this.tauntCd -= dt;
+        if (this.tauntCd <= 0){
+          // add threat spike to enemies in radius
+          for (const e of enemies){
+            const d = Math.hypot(e.x-this.x, e.y-this.y);
+            if (d <= this.beh.tank.tauntRadius){
+              e.addThreat(this, 999); // big spike
+            }
+          }
+          this.tauntCd = this.beh.tank.tauntEvery;
+        }
+      }
+
+      // Acquire target (nearest enemy in range)
+      let target=null, nd=1e9;
+      for (const e of enemies){
+        const d = Math.hypot(e.x-this.x, e.y-this.y);
+        if (d < this.base.range && d < nd){ target=e; nd=d; }
+      }
+      if (!target || this.cool>0) return;
+
+      // Fire
+      const dmgBase = this.base.dmg;
+      const crit = this.beh.crit;
+      let dmg = dmgBase;
+      if (crit && Math.random() < crit.chance) dmg *= crit.mult;
+
+      tBullets.push(new TBullet(this, target, dmg * (this._dmgBuffTimer>0 ? this._dmgBuffMult : 1.0)));
+      this.firePulse = 1.0;
+      this.cool = this.base.rof;
+    }
+
+    draw(){
+        const c = FRAME[this.frame].color;
+
+        // firing rune flare
+        if (this.firePulse>0){
+          ctx.save();
+          ctx.globalAlpha = 0.25 * this.firePulse;
+          ctx.strokeStyle = c;
+          ctx.lineWidth = 3;
+          ctx.beginPath(); ctx.arc(this.x, this.y, 22 + 14*(1-this.firePulse), 0, Math.PI*2); ctx.stroke();
+          ctx.restore();
+        }
+
+        // themed totem
+        drawTotem(this.x, this.y, c, !!this.beh.tank, this.affixes.length);
+
+        // Tank aura
+        if (this.beh.tank){
+          drawRunicCircle(this.x, this.y, 30, 0.14);
+        }
+
+        // HP bar
+        ctx.fillStyle='rgba(0,0,0,0.75)'; ctx.fillRect(this.x-12, this.y+20, 24, 4);
+        ctx.fillStyle='#4caf50'; ctx.fillRect(this.x-12, this.y+20, 24*(this.hp/this.maxHP), 4);
+      }
+
+    takeDamage(amount){
+      const final = amount * this.dmgTakenMult;
+      this.hp -= final;
+      if (this.hp <= 0){
+        const i = towers.indexOf(this);
+        if (i>=0) towers.splice(i,1);
+      }
+    }
+  }
+
+  class TBullet {
+    constructor(srcTower, targetEnemy, damage){
+      this.s = srcTower;
+      this.t = targetEnemy;
+      this.dmg = damage;
+      this.x = srcTower.x; this.y = srcTower.y;
+      this.speed = 6.2;
+    }
+    update(dt){
+      if (!enemies.includes(this.t) || this.t.hp<=0){ return this.kill(); }
+      const dx = this.t.x - this.x;
+      const dy = this.t.y - this.y;
+      const d = Math.hypot(dx,dy);
+
+      const step = this.speed * dt;
+      if (d <= step){
+        this.hit();
+        return this.kill();
+      }
+      this.x += (dx/d)*step;
+      this.y += (dy/d)*step;
+    }
+    hit(){
+      // Deal damage + threat attribution
+      const tower = this.s;
+      let dmg = this.dmg;
+
+      // poison bonus vs bosses
+      if (tower.beh.poison && this.t.isBoss) dmg *= tower.beh.poison.bossMult;
+
+      this.t.takeDamage(dmg, tower);
+
+      
+
+      // VFX: impact ping at primary target
+      vfx.push(new VFXRing(this.t.x, this.t.y, 6, 22, 'rgba(255,215,120,0.95)', 22));
+// Apply behaviors (DoTs / slow)
+      if (tower.beh.burn){
+        this.t.applyBurn(tower.beh.burn.ticks, tower.beh.burn.dps);
+      
+        // VFX: embers burst
+        vfx.push(new VFXEmbers(this.t.x, this.t.y, 'rgba(255,92,92,0.95)', 26));
+}
+      if (tower.beh.poison){
+        this.t.applyPoison(tower.beh.poison.ticks, tower.beh.poison.dps);
+      
+        // VFX: poison puddle
+        vfx.push(new VFXPuddle(this.t.x, this.t.y, 26, 'rgba(54,209,90,0.95)', 110));
+}
+      if (tower.beh.slow){
+        this.t.applySlow(tower.beh.slow.ticks, tower.beh.slow.mult);
+      
+        // VFX: frost ring
+        vfx.push(new VFXRing(this.t.x, this.t.y, 10, 34, 'rgba(105,210,255,0.95)', 26));
+}
+
+      // Splash
+      if (tower.beh.splash){
         
-        // Apply affixes
-        for (const affix of affixes) {
-          if (affix.stat === 'hp') {
-            this.maxHP = Math.floor(this.maxHP * affix.mult);
-            this.hp = this.maxHP;
-          } else if (affix.stat === 'range') {
-            this.range = Math.floor(this.range * affix.mult);
-          }
-        }
-      }
-      
-      getModifiedStat(baseStat, statName) {
-        let value = baseStat;
-        for (const affix of this.affixes) {
-          if (affix.stat === statName) {
-            value *= affix.mult;
-          }
-        }
-        return value;
-      }
-      
-      update(){
-        if (this.cool>0) this.cool--;
-        let target=null, nd=1e9;
+        // VFX: splash shockwave
+        vfx.push(new VFXRing(this.t.x, this.t.y, 12, tower.beh.splash.radius + 10, 'rgba(255,154,91,0.95)', 24));
+const r = tower.beh.splash.radius;
         for (const e of enemies){
-          const d = Math.hypot(e.x-this.x, e.y-this.y);
-          if (d<this.range && d<nd){ target=e; nd=d; }
+          if (e===this.t) continue;
+          const dd = Math.hypot(e.x-this.t.x, e.y-this.t.y);
+          if (dd <= r){
+            e.takeDamage(dmg * tower.beh.splash.pct, tower);
+          }
         }
-        if (!target || this.cool>0) return;
-        const s = statsFor(this.type);
-        const dmg = this.getModifiedStat(s.dmg, 'dmg');
-        const rof = this.getModifiedStat(s.rof, 'rof');
-        
-        if (s.special==='dual'){
-          tBullets.push(new TBullet(this.x,this.y,target,dmg, this.type));
-          tBullets.push(new TBullet(this.x,this.y,target,dmg*2, this.type));
-        } else if (s.special==='splash'){
-          tBullets.push(new TBullet(this.x,this.y,target,dmg, this.type, {splash:true, radius:40, splashPct:0.5}));
-        } else if (s.special==='chain'){
-          tBullets.push(new TBullet(this.x,this.y,target,dmg, this.type, {chain:true, range:110, chainPct:0.6}));
-        } else {
-          tBullets.push(new TBullet(this.x,this.y,target,dmg, this.type));
-        }
-        this.cool = rof;
       }
-      draw(){
-        const s = statsFor(this.type);
-        ctx.fillStyle = s.color;
-        ctx.fillRect(this.x-10, this.y-10, 20, 20);
-        
-        // Draw affix border
-        if (this.affixes.length > 0) {
-          const borderColor = this.affixes.length >= 2 ? '#ffd700' : '#4ecdc4';
-          ctx.strokeStyle = borderColor;
-          ctx.lineWidth = 2;
-          ctx.strokeRect(this.x-10, this.y-10, 20, 20);
+
+      // Chain
+      if (tower.beh.chain){
+        let sec = null, nd=Infinity;
+        for (const e of enemies){
+          if (e===this.t) continue;
+          const dd = Math.hypot(e.x-this.t.x, e.y-this.t.y);
+          if (dd < tower.beh.chain.range && dd < nd){ sec = e; nd = dd; }
         }
+        if (sec){
+          if ((this.chainDepth||0) < 6) { tBullets.push(new TBullet(tower, sec, this.chainBaseDmg * 2.0, this.chainBaseDmg, (this.chainDepth||0)+1)); }
         
-        ctx.fillStyle='#000'; ctx.fillRect(this.x-12, this.y+12, 24, 4);
-        ctx.fillStyle='#4caf50'; ctx.fillRect(this.x-12, this.y+12, 24*(this.hp/this.maxHP), 4);
+          // VFX: chain lightning arc
+          vfx.push(new VFXArc(this.t.x, this.t.y, sec.x, sec.y, 18));
+}
+      }
+    }
+    draw(){
+        // arrow spark
+        ctx.save();
+        ctx.translate(this.x,this.y);
+        ctx.fillStyle = 'rgba(255,215,120,0.95)';
+        ctx.beginPath();
+        ctx.moveTo(0,-3); ctx.lineTo(8,0); ctx.lineTo(0,3); ctx.closePath();
+        ctx.fill();
+        ctx.globalAlpha = 0.35;
+        ctx.fillStyle = 'rgba(140,220,255,0.9)';
+        ctx.beginPath(); ctx.arc(0,0,4,0,Math.PI*2); ctx.fill();
+        ctx.restore();
+      }
+    kill(){
+      const i = tBullets.indexOf(this);
+      if (i>=0) tBullets.splice(i,1);
+    }
+  }
+
+  class EBullet {
+    constructor(x,y,targetTower,damage){
+      this.x=x; this.y=y; this.t=targetTower; this.dmg=damage;
+      this.speed=5.5;
+    }
+    update(dt){
+      if (!towers.includes(this.t)) return this.kill();
+      const dx=this.t.x-this.x, dy=this.t.y-this.y, d=Math.hypot(dx,dy);
+      const step = this.speed*dt;
+      if (d<=step){
+        this.t.takeDamage(this.dmg);
+        return this.kill();
+      }
+      this.x+=dx/d*step; this.y+=dy/d*step;
+    }
+    draw(){
+        // dark rune bolt
+        ctx.save();
+        ctx.translate(this.x,this.y);
+        ctx.fillStyle='rgba(176,132,245,0.95)';
+        ctx.beginPath();
+        ctx.moveTo(-6,0); ctx.lineTo(0,-4); ctx.lineTo(6,0); ctx.lineTo(0,4);
+        ctx.closePath(); ctx.fill();
+        ctx.globalAlpha=0.25;
+        ctx.fillStyle='rgba(0,0,0,0.8)';
+        ctx.beginPath(); ctx.arc(0,0,7,0,Math.PI*2); ctx.fill();
+        ctx.restore();
+      }
+    kill(){
+      const i=eBullets.indexOf(this);
+      if (i>=0) eBullets.splice(i,1);
+    }
+  }
+
+  // ========= Enemies + Threat =========
+  function hpMultForRift(r){ return Math.pow(1.085, r); }
+  function spdMultForRift(r){ return Math.min(1 + 0.015*r, 1.6); }
+  function dmgMultForRift(r){ return 1 + 0.08*r; }
+  function countForRift(r){ return 6 + Math.floor(r*1.7); }
+  function spawnGapForRift(r){ return Math.max(240, 680 * Math.pow(0.96, r)); }
+
+  // ========= Tower global scaling (keeps towers relevant as rifts scale) =========
+  function towerDmgMult(){ return 1 + 0.0975 * rift; }  // +6.5% damage per rift  // +3% damage per rift
+  function towerHpMult(){ return 1 + 0.0675 * rift; }   // +4.5% max HP per rift   // +2% max HP per rift
+  function towerRangeMult(){ return 1 + 0.018 * rift; } // +1.2% range per rift // +1% range per rift
+
+  // Diablo-style currency goblin: occasional fast enemy that drops extra gold (no loot)
+  const GOBLIN_CHANCE = 0.12;
+
+  const ENEMY_AFFIXES = ['fast','armored','regen','shielded'];
+  function rollEnemyAffix(){
+    if (Math.random() < Math.min(0.10 + rift*0.01, 0.35)){
+      return ENEMY_AFFIXES[Math.floor(Math.random()*ENEMY_AFFIXES.length)];
+    }
+    return null;
+  }
+
+  class Enemy {
+    constructor(isBoss=false, scale=1, affix=null, pathIndex=null){
+      this.isBoss = isBoss;
+      this.affix = affix;
+      this.isGoblin = (affix === 'goblin');
+      this.pathIndex = (pathIndex!=null) ? pathIndex : Math.floor(Math.random()*paths.length);
+      this.path = paths[this.pathIndex];
+      this.i=0;
+      this.x=this.path[0].x; this.y=this.path[0].y;
+
+      // Early-game HP smoothing: reduce normal enemy HP in rifts 1-5, ramp to normal by rift 6
+      const earlyHPFactor = (!isBoss && !this.isGoblin && rift <= 6) ? (0.82 + (rift-1) * (0.18/5)) : 1.0;
+
+      let baseHP;
+      let baseSPD;
+      if (isBoss){
+        baseHP = 1100;
+        baseSPD = 0.85;
+      } else if (this.isGoblin){
+        // goblin: low HP, high speed
+        baseHP = 60;
+        baseSPD = 1.6;
+      } else {
+        baseHP = (140 * earlyHPFactor);
+        baseSPD = 0.9;
+      }
+
+      // Non-boss scaling ramp: makes trash mobs meaningfully tougher over time without over-buffing bosses.
+      const nonBossRamp = (!isBoss && !this.isGoblin) ? (1 + 0.12 * rift) : 1;
+      const hp = baseHP * hpMultForRift(rift) * nonBossRamp * scale * (isBoss ? 6.2 : 1);
+      const sp = baseSPD * spdMultForRift(rift) * (affix==='fast' ? 1.25 : 1);
+      this.hp = Math.floor(hp);
+      this.max = this.hp;
+      this.speed = sp;
+      this.r = isBoss ? 24 : (this.isGoblin ? 8 : 10);
+
+      // status
+      this.burnTicks=0; this.burnDps=0;
+      this.poisonTicks=0; this.poisonDps=0;
+      this.slowTicks=0; this.slowMult=0.55;
+
+      // defenses
+      this.armor = (affix==='armored') ? 0.28 : 0;
+      this.regen = (affix==='regen') ? (1 + 0.15*rift) : 0;
+      this.shield = (affix==='shielded') ? Math.min(40 + 6*rift, 250) : 0;
+
+
+      // Boss-only debuff state (Diablo-style \"Expose\"): ramps damage taken with sustained hits.
+      this.exposeStacks = 0;
+      this.exposeCooldown = 0; // frames until decay starts
+      this._exposeDecayAcc = 0;
+
+      // boss ranged
+      this.shootCd = isBoss ? 60 : Infinity;
+
+      // melee vs towers
+      this.meleeCd = 0;
+
+      // threat table: Map towerId -> threat score
+      this.threat = new Map();
+      this.currentTarget = null;
+
+      this.hitTimer=0;
+    }
+
+    addThreat(tower, amount){
+      const prev = this.threat.get(tower.id) || 0;
+      this.threat.set(tower.id, prev + amount);
+    }
+
+    selectTarget(){
+      // Choose highest threat tower within 220 radius; fallback nearest tower within 200
+      let best=null, bestScore=-1;
+      for (const tw of towers){
+        const d = Math.hypot(tw.x-this.x, tw.y-this.y);
+        if (d > 220) continue;
+        const s = (this.threat.get(tw.id) || 0);
+        if (s > bestScore){ best=tw; bestScore=s; }
+      }
+      if (!best){
+        let near=null, nd=Infinity;
+        for (const tw of towers){
+          const d = Math.hypot(tw.x-this.x, tw.y-this.y);
+          if (d < 200 && d < nd){ near=tw; nd=d; }
+        }
+        best = near;
+      }
+      this.currentTarget = best;
+    }
+
+    applyBurn(ticks, dps){
+      this.burnTicks = Math.max(this.burnTicks, ticks);
+      this.burnDps = Math.max(this.burnDps, dps);
+    }
+    applyPoison(ticks, dps){
+      const scaledDps = (this.poisonTicks > 0) ? (dps * 2.0) : dps;
+      this.poisonTicks = Math.max(this.poisonTicks, ticks);
+      this.poisonDps = Math.max(this.poisonDps, scaledDps);
+    }
+    applySlow(ticks, mult){
+      this.slowTicks = Math.max(this.slowTicks, ticks);
+      this.slowMult = mult;
+    }
+
+    takeDamage(amount, sourceTower){
+      // shield first
+      if (this.shield > 0){
+        const used = Math.min(this.shield, amount);
+        this.shield -= used;
+        amount -= used;
+      }
+      if (amount <= 0) return;
+
+      // armor
+      amount *= (1 - this.armor);
+
+
+      // Safety: guard against NaN/Infinity damage creating 'immune' enemies (NaN comparisons fail).
+      if (!Number.isFinite(amount) || amount < 0) amount = 0;
+      if (!Number.isFinite(this.shield) || this.shield < 0) this.shield = 0;
+      // Boss-only scaling: Boss-Slayer multiplier + Expose ramp (no stagger).
+      if (this.isBoss){
+        if (sourceTower){
+          // ramps with rifts; intended to keep boss time-to-kill reasonable as enemy HP scales
+          const bossSlayer = 1 + (0.09 * Math.max(0, rift - 1));
+          amount *= bossSlayer;
+        }
+
+        // Apply current expose stacks to damage taken (up to +225% at 30 stacks).
+        if (this.exposeStacks > 0){
+          amount *= (1 + 0.075 * this.exposeStacks);
+        }
+
+        // On hit: add 1 stack and refresh decay timer.
+        this.exposeStacks = Math.min(30, this.exposeStacks + 1);
+        this.exposeCooldown = 90;
+      }
+
+      this.hp -= amount;
+      this.hitTimer = 1.0;
+
+      
+      if (!Number.isFinite(this.hp) || this.hp < 0.0001) this.hp = 0;
+// threat generation: damage × tower threat multipliers
+      if (sourceTower){
+        // cluster threat multiplier to discourage blob (computed per-tower each frame)
+        const clusterBonus = sourceTower._clusterThreatBonus || 1.0;
+        const th = amount * sourceTower.base.threatBase * sourceTower.threatMult * clusterBonus;
+        this.addThreat(sourceTower, th);
       }
     }
 
-    class Enemy {
-      constructor(isBoss=false, scale=1, affix=null, pathIndex=null){
-        this.isBoss=isBoss; this.i=0; this.affix=affix;
-        this.pathIndex = pathIndex !== null ? pathIndex : Math.floor(Math.random() * paths.length);
-        this.path = paths[this.pathIndex];
-        this.x=this.path[0].x; this.y=this.path[0].y;
-
-        const baseHP = isBoss ? 1200 : 160;
-        const baseSPD = isBoss ? 0.85 : 0.9;
-
-        const hp = baseHP * hpMultForRound(round) * scale * (isBoss ? 6.5 : 1);
-        const sp = baseSPD * spdMultForRound(round) * (affix==='fast' ? 1.25 : 1);
-
-        this.hp = Math.floor(hp);
-        this.max = this.hp;
-        this.speed = sp;
-        this.r = isBoss?24:10;
-
-        // status effects
-        this.burnTicks=0; this.burnDmg=0;
-        this.slowTimer=0;
-        this.poisonTicks=0; this.poisonDmg=0;
-
-        // defensive affixes
-        this.armor = (affix==='armored') ? 0.35 : 0;
-        this.regen = (affix==='regen') ? (1 + 0.15*round) : 0;
-        this.shield = (affix==='shielded') ? Math.min(40 + 6*round, 250) : 0;
-
-        // shooting: BOSSES ONLY
-        this.cool = this.isBoss ? 60 : Infinity;
+    tickDOTs(dt){
+      if (this.burnTicks>0){
+        const t = Math.min(this.burnTicks, dt);
+        this.hp -= this.burnDps * t;
+        this.burnTicks -= t;
+            if (!Number.isFinite(this.hp) || this.hp < 0.0001) this.hp = 0;
+    }
+      if (this.poisonTicks>0){
+        const t = Math.min(this.poisonTicks, dt);
+        this.hp -= this.poisonDps * t;
+        this.poisonTicks -= t;
       }
-      applyDOTs(){
-        if (this.burnTicks>0){ this.hp -= this.burnDmg; this.burnTicks--; }
-        if (this.poisonTicks>0){ this.hp -= this.poisonDmg; this.poisonTicks--; }
+    }
+
+    tickRegen(dt){
+      if (this.regen>0 && this.hp>0 && this.hp<this.max){
+        this.hp = Math.min(this.max, this.hp + this.regen*dt);
       }
-      tickRegen(){
-        if (this.regen>0 && this.hp>0 && this.hp<this.max){ this.hp = Math.min(this.max, this.hp + this.regen); }
+    }
+
+    bossShoot(dt){
+      if (!this.isBoss) return;
+      this.shootCd -= dt;
+      if (this.shootCd > 0) return;
+
+      // shoot highest threat tower if exists, else nearest
+      this.selectTarget();
+      if (this.currentTarget){
+        const dmg = Math.ceil(22 * dmgMultForRift(rift));
+        eBullets.push(new EBullet(this.x, this.y, this.currentTarget, dmg));
       }
-      shootAtNearestTower(){
-        if (towers.length===0) return;
-        let t=null, nd=1e9;
-        for (const tw of towers){
-          const dd = Math.hypot(tw.x - this.x, tw.y - this.y);
-          if (dd < nd){ t = tw; nd = dd; }
+      this.shootCd = 60;
+    }
+
+    meleeAttack(dt){
+      // Enemies (including normal) will melee towers if within radius
+      this.meleeCd -= dt;
+      if (this.meleeCd > 0) return;
+
+      this.selectTarget();
+      if (!this.currentTarget) return;
+
+      const d = Math.hypot(this.currentTarget.x-this.x, this.currentTarget.y-this.y);
+      if (d > (this.isBoss ? 60 : 42)) return;
+
+      const base = this.isBoss ? 26 : 10;
+      const dmg = Math.ceil(base * dmgMultForRift(rift));
+      this.currentTarget.takeDamage(dmg);
+      this.meleeCd = this.isBoss ? 34 : 44; // faster boss melee
+    }
+
+    update(dt){
+      if (this.hitTimer>0) this.hitTimer -= 0.10*dt;
+
+      // status + regen
+      if (this.slowTicks>0) this.slowTicks -= dt;
+      this.tickDOTs(dt);
+      this.tickRegen(dt);
+
+      // Boss Expose decay: after a short grace period without hits, stacks fall off gradually.
+      if (this.isBoss){
+        if (this.exposeCooldown > 0){
+          this.exposeCooldown -= dt;
+          if (this.exposeCooldown < 0) this.exposeCooldown = 0;
+          this._exposeDecayAcc = 0;
+        } else if (this.exposeStacks > 0){
+          this._exposeDecayAcc += dt;
+          // decay 1 stack every ~30 frames (~0.5s at 60fps)
+          while (this._exposeDecayAcc >= 30 && this.exposeStacks > 0){
+            this.exposeStacks--;
+            this._exposeDecayAcc -= 30;
+          }
         }
-        if (!t) return;
-        const dmg = Math.ceil(24 * dmgMultForRound(round)); // boss damage scales
-        eBullets.push(new EBullet(this.x, this.y, t, dmg));
       }
-      update(){
-        if (this.slowTimer>0) this.slowTimer--;
-        this.applyDOTs();
-        this.tickRegen();
 
-        const nxt = this.path[this.i+1];
-        if (!nxt){
-          baseHealth -= this.isBoss?Math.ceil(18 * dmgMultForRound(round)):10;
+      // death handled externally
+      if (this.hp <= 0) return;
+
+      // melee pressure
+      this.meleeAttack(dt);
+
+      // boss ranged pressure
+      this.bossShoot(dt);
+
+      // If targeting a tower and close-ish, drift toward it (creates tower threat)
+      this.selectTarget();
+      const tgt = this.currentTarget;
+      let moveTarget = null;
+      if (tgt){
+        const dToTower = Math.hypot(tgt.x-this.x, tgt.y-this.y);
+        if (dToTower < 220){
+          moveTarget = {x:tgt.x, y:tgt.y};
+        }
+      }
+
+      if (!moveTarget){
+        // normal path following to objective
+        moveTarget = this.path[this.i+1];
+        if (!moveTarget){
+          baseHealth -= this.isBoss ? Math.ceil(18 * dmgMultForRift(rift)) : 10;
           const idx=enemies.indexOf(this); if (idx>=0) enemies.splice(idx,1);
           return;
         }
-        const effSPD = this.speed * (this.slowTimer>0 ? 0.55 : 1.0);
-        const dx=nxt.x-this.x, dy=nxt.y-this.y, d=Math.hypot(dx,dy);
-        if (d<effSPD) this.i++; else { this.x+=dx/d*effSPD; this.y+=dy/d*effSPD; }
-
-        // bosses shoot on cooldown
-        if (this.isBoss){
-          this.cool--;
-          if (this.cool<=0){
-            this.shootAtNearestTower();
-            this.cool = 60;
-          }
-        }
       }
-      draw(){
-        let c = this.isBoss ? '#3b146b' : 'green';
-        if (!this.isBoss && this.affix){
-          c = (this.affix==='fast')?'#7ed957':(this.affix==='armored')?'#9aa0a6':(this.affix==='regen')?'#6ee7b7':'#60a5fa';
-        }
-        ctx.fillStyle = c;
-        ctx.beginPath(); ctx.arc(this.x,this.y,this.r,0,Math.PI*2); ctx.fill();
 
-        const barW = 32, barH=5;
-        const px = this.x - barW/2, py = this.y - this.r - 10;
-        ctx.fillStyle='#000'; ctx.fillRect(px, py, barW, barH);
-        ctx.fillStyle='#e74c3c'; ctx.fillRect(px, py, barW*(this.hp/this.max), barH);
+      const eff = this.speed * (this.slowTicks>0 ? this.slowMult : 1.0);
+      const dx = moveTarget.x - this.x, dy = moveTarget.y - this.y;
+      const d = Math.hypot(dx,dy) || 1;
+
+      const step = eff * dt;
+      if (!tgt && moveTarget === this.path[this.i+1] && d <= step){
+        this.i++;
+      } else {
+        this.x += (dx/d)*step;
+        this.y += (dy/d)*step;
+      }
+    }
+
+    draw(){
+        // hit flash
+        if (this.hitTimer>0){
+          ctx.save();
+          ctx.globalAlpha = 0.30 * this.hitTimer;
+          ctx.fillStyle = '#fff';
+          ctx.beginPath(); ctx.arc(this.x,this.y,this.r+4,0,Math.PI*2); ctx.fill();
+          ctx.restore();
+        }
+
+        // themed enemy icon
+        drawEnemyDraugr(this.x, this.y, this.r, this.isBoss, this.affix);
+
+        // hp + shield bar
+        const barW=34, barH=5;
+        const px=this.x-barW/2, py=this.y-this.r-12;
+        ctx.fillStyle='rgba(0,0,0,0.75)'; ctx.fillRect(px,py,barW,barH);
+        ctx.fillStyle='#e74c3c'; ctx.fillRect(px,py,barW*(this.hp/this.max),barH);
         if (this.shield>0){
           const shieldRatio = Math.min(1, this.shield / (this.max*0.5));
-          ctx.fillStyle='rgba(135,206,235,0.8)'; ctx.fillRect(px, py, barW*shieldRatio, barH);
+          ctx.fillStyle='rgba(135,206,235,0.85)';
+          ctx.fillRect(px,py,barW*shieldRatio,barH);
         }
       }
-      takeDamage(amount){
-        if (this.shield>0){
-          const used = Math.min(this.shield, amount);
-          this.shield -= used; amount -= used;
+  }
+
+  // ========= Anti-blob: cluster threat bonus =========
+  function computeClusterThreatBonuses(){
+    // If more than 3 towers within 70px, increase threat contribution (enemies aggro the blob)
+    for (const t of towers) t._clusterThreatBonus = 1.0;
+    const R = 70;
+    for (let i=0;i<towers.length;i++){
+      let count=0;
+      for (let j=0;j<towers.length;j++){
+        if (i===j) continue;
+        const d = Math.hypot(towers[i].x-towers[j].x, towers[i].y-towers[j].y);
+        if (d <= R) count++;
+      }
+      if (count >= 3){
+        towers[i]._clusterThreatBonus = 1.0 + 0.10*(count-2); // soft scaling
+      }
+    }
+  }
+
+  // ========= Round control =========
+  function canStartRift(){
+    return inIntermission();
+  }
+  function updateStartButton(){
+    startBtn.disabled = !canStartRift();
+  }
+
+  startBtn.onclick = () => { if (canStartRift()) startRift(); };
+
+  function startRift(){
+    spawning = true;
+    rift++;
+    // Re-scale all existing towers for the new rift.
+    for (const t of towers) t.recompute();
+    dropsThisRift = 0;
+
+    const count = countForRift(rift);
+    const gap = spawnGapForRift(rift);
+
+    for (let i=0;i<count;i++){
+      setTimeout(() => {
+        const isBoss = (rift % 5 === 0) && (i === 0);
+        const waveScale = 1 + (i/count)*0.35;
+        // Occasionally spawn a currency goblin (non-boss) instead of a normal affixed enemy
+        let affix = null;
+        if (!isBoss){
+          if (Math.random() < GOBLIN_CHANCE) affix = 'goblin';
+          else affix = rollEnemyAffix();
         }
-        if (amount<=0) return;
-        amount *= (1 - this.armor);
-        this.hp -= amount;
-      }
+        enemies.push(new Enemy(isBoss, waveScale, affix));
+      }, i*gap);
     }
 
-    class TBullet {
-      constructor(x,y,target,damage, towerType, opts={}){
-        this.x=x; this.y=y; this.t=target; this.dmg=damage; this.towerType=towerType; this.opts=opts;
-        this.speed = 6.2;
-      }
-      update(){
-        if (!enemies.includes(this.t) || this.t.hp<=0) return this.kill();
-        const dx=this.t.x-this.x, dy=this.t.y-this.y, d=Math.hypot(dx,dy);
-        if (d<this.speed){
-          // Elemental synergies
-          let finalDmg = this.dmg;
-          if (this.towerType==='poison' && this.t.isBoss) finalDmg *= 1.5; // poison bonus vs bosses
-          if (this.towerType==='ice'){ this.t.slowTimer = Math.max(this.t.slowTimer, 60); } // slow applied
-          if (this.towerType==='lightning' && this.t.slowTimer>0) finalDmg *= 1.5; // lightning bonus on slowed
-
-          this.t.takeDamage(finalDmg);
-
-          // DoTs and specials
-          if (this.towerType==='fire'){ this.t.burnTicks = Math.max(this.t.burnTicks, 30); this.t.burnDmg = 1.5; }
-          if (this.towerType==='poison'){ this.t.poisonTicks = Math.max(this.t.poisonTicks, 90); this.t.poisonDmg = 0.8; }
-          if (this.opts.splash){
-            for (const e of enemies){
-              if (e===this.t) continue;
-              if (Math.hypot(e.x-this.t.x, e.y-this.t.y) <= this.opts.radius) e.takeDamage(finalDmg*this.opts.splashPct);
-            }
-          }
-          if (this.opts.chain){
-            let sec=null, nd=Infinity;
-            for (const e of enemies){
-              if (e===this.t) continue;
-              const dd = Math.hypot(e.x-this.t.x, e.y-this.t.y);
-              if (dd < this.opts.range && dd < nd){ sec=e; nd=dd; }
-            }
-            if (sec){ tBullets.push(new TBullet(this.t.x, this.t.y, sec, finalDmg*this.opts.chainPct, this.towerType)); }
-          }
-          return this.kill();
-        }
-        this.x+=dx/d*this.speed; this.y+=dy/d*this.speed;
-      }
-      draw(){
-        const c = (this.towerType==='fire') ? '#ff9b58'
-                : (this.towerType==='ice') ? '#b3ecff'
-                : (this.towerType==='lightning') ? '#ffe66d'
-                : (this.towerType==='poison') ? '#90ee90'
-                : (this.towerType==='heavy') ? '#ffdddd'
-                : (this.towerType==='dual') ? '#e1c4ff'
-                : 'yellow';
-        ctx.fillStyle = c; ctx.beginPath(); ctx.arc(this.x, this.y, 3, 0, Math.PI*2); ctx.fill();
-      }
-      kill(){ const i=tBullets.indexOf(this); if (i>=0) tBullets.splice(i,1); }
-    }
-
-    class EBullet {
-      constructor(x,y,target,damage){ this.x=x; this.y=y; this.t=target; this.dmg=damage; this.speed=5.5; }
-      update(){
-        if (!towers.includes(this.t)) return this.kill();
-        const dx=this.t.x-this.x, dy=this.t.y-this.y, d=Math.hypot(dx,dy);
-        if (d<this.speed){
-          this.t.hp -= this.dmg;
-          if (this.t.hp <= 0){
-            const i=towers.indexOf(this.t); if (i>=0) towers.splice(i,1);
-          }
-          return this.kill();
-        }
-        this.x+=dx/d*this.speed; this.y+=dy/d*this.speed;
-      }
-      draw(){ ctx.fillStyle='#b084f5'; ctx.beginPath(); ctx.arc(this.x,this.y,3.5,0,Math.PI*2); ctx.fill(); }
-      kill(){ const i=eBullets.indexOf(this); if (i>=0) eBullets.splice(i,1); }
-    }
-
-    function canStartRound(){ return !spawning && enemies.length===0 && baseHealth>0; }
-    function updateStartButton(){ startBtn.disabled = !canStartRound(); }
-    startBtn.onclick = () => { if (canStartRound()) startRound(); };
-
-    function startRound(){
-      spawning = true; round++;
-      for (const t of towers){ t.maxHP += 6; t.hp = Math.min(t.maxHP, t.hp + 6); }
-
-      const count = countForRound(round);
-      const gap = spawnGapForRound(round);
-
-      for (let i=0;i<count;i++){
-        setTimeout(()=>{
-          const isBoss = (round%5===0) && (i===0);
-          const waveScale = 1 + (i/count)*0.35;
-          const affix = isBoss ? null : rollAffix();
-          enemies.push(new Enemy(isBoss, waveScale, affix));
-        }, i*gap);
-      }
-      setTimeout(()=> { spawning=false; updateStartButton(); }, count*gap + 400);
-      updateStartButton();
-    }
-
-    let lastPlaceAt = 0;
-    let pickedUpLoot = null;
-    
-    function placeAt(x,y){
-      // Check if clicking near loot
-      for (let i = lootDrops.length - 1; i >= 0; i--) {
-        const loot = lootDrops[i];
-        if (loot.isNear(x, y)) {
-          pickedUpLoot = loot;
-          lootDrops.splice(i, 1);
-          toggleBtn.textContent = towerLabel(loot.type) + (loot.affixes.length > 0 ? ' +' + loot.affixes.length : '');
-          return;
-        }
-      }
-      
-      // Place tower (from loot or regular)
-      if (pickedUpLoot) {
-        const t = new Tower(x, y, pickedUpLoot.type, pickedUpLoot.affixes);
-        towers.push(t);
-        pickedUpLoot = null;
-        toggleBtn.textContent = towerLabel(towerType);
-        return;
-      }
-      
-      // Regular tower placement
-      const s = statsFor(towerType);
-      if (points<s.cost) return;
-      const t = new Tower(x,y,towerType);
-      towers.push(t);
-      points -= s.cost;
-    }
-    canvas.addEventListener('pointerdown', (e) => {
-      if (!e.isPrimary) return;
-      e.preventDefault();
-      const now = performance.now();
-      if (now - lastPlaceAt < 250) return;
-      lastPlaceAt = now;
-      const rect = canvas.getBoundingClientRect();
-      placeAt(e.clientX - rect.left, e.clientY - rect.top);
-    }, {passive:false});
-
-    function drawPath(){
-      ctx.strokeStyle='rgba(255,255,255,0.22)'; ctx.lineWidth=18; ctx.lineCap='round';
-      for (const path of paths) {
-        ctx.beginPath(); ctx.moveTo(path[0].x, path[0].y);
-        for (let i=1; i<path.length; i++) ctx.lineTo(path[i].x, path[i].y);
-        ctx.stroke();
-      }
-    }
-
-    function loop(){
-      ctx.clearRect(0,0,canvas.width,canvas.height);
-      drawPath();
-
-      for (const e of [...enemies]) e.update();
-      for (let i=enemies.length-1;i>=0;i--){
-        if (enemies[i].hp<=0){
-          const e = enemies[i];
-          points += e.isBoss ? 60 : 15;
-          
-          // Drop loot chance
-          const dropChance = e.isBoss ? 0.8 : 0.25;
-          if (Math.random() < dropChance) {
-            const lootType = ORDER[Math.floor(Math.random() * ORDER.length)];
-            const lootAffixes = rollTowerAffixes(e.isBoss);
-            lootDrops.push(new TowerLoot(e.x, e.y, lootType, lootAffixes));
-          }
-          
-          enemies.splice(i,1);
-        }
-      }
-      for (const t of towers) t.update();
-      for (const b of [...tBullets]) b.update();
-      for (const b of [...eBullets]) b.update();
-      for (const l of lootDrops) l.update();
-
-      for (const t of towers) t.draw();
-      for (const l of lootDrops) l.draw();
-      for (const b of tBullets) b.draw();
-      for (const b of eBullets) b.draw();
-      for (const e of enemies) e.draw();
-
-      updateStartButton();
-      let hudText = `Points: ${points} | Base Health: ${baseHealth} | Rift: ${round} ${spawning?'(spawning…)':(canStartRound()?'(ready)':'')}`;
-      if (pickedUpLoot) {
-        const lootTypeName = pickedUpLoot.type.charAt(0).toUpperCase() + pickedUpLoot.type.slice(1);
-        hudText += ` | LOOT: ${lootTypeName}`;
-        if (pickedUpLoot.affixes.length > 0) {
-          hudText += ' [' + pickedUpLoot.affixes.map(a => a.name).join(', ') + ']';
-        }
-        hudText += ' - Click to place';
-      } else if (lootDrops.length > 0) {
-        hudText += ` | ${lootDrops.length} Loot drop(s) available`;
-      }
-      hud.textContent = hudText;
-
-      if (baseHealth<=0){
-        ctx.fillStyle='red'; ctx.font='40px Arial'; ctx.fillText('Rift Closed — You Died', width/2-190, height/2);
-        return;
-      }
-      requestAnimationFrame(loop);
-    }
-    toggleBtn.textContent = towerLabel(towerType);
+    setTimeout(() => { spawning = false; updateStartButton(); setCombatUI(); }, count*gap + 400);
     updateStartButton();
-    loop();
-  </script>
+    setCombatUI();
+  }
+
+  // ========= Placement / Interaction =========
+  let lastTapAt = 0;
+  let selectedTower = null;
+
+  function pickTowerAt(x,y){
+    // tap tower selection (intermission only)
+    let best=null, nd=Infinity;
+    for (const t of towers){
+      const d = Math.hypot(t.x-x, t.y-y);
+      if (d < 34 && d < nd){ best=t; nd=d; }
+    }
+    return best;
+  }
+
+  function placeTowerAt(x,y){
+    // 1) pick up loot drops if near
+    for (let i=lootDrops.length-1;i>=0;i--){
+      const ld = lootDrops[i];
+      if (ld.isNear(x,y)){
+        inventory.push(ld.item);
+        selectedInvId = ld.item.id;
+        lootDrops.splice(i,1);
+        renderInventory();
+        toast('Picked up tower loot');
+        return;
+      }
+    }
+
+    // 2) Select tower during intermission
+    if (inIntermission()){
+      const t = pickTowerAt(x,y);
+      if (t){
+        selectedTower = t;
+        renderTowerPanel();
+        return;
+      }
+    }
+
+    // 3) Place selected inventory item
+    const it = getSelectedItem();
+    if (!it){
+      toast('No tower selected');
+      return;
+    }
+
+    // simple placement rule: not inside UI area near top
+    if (y < 90) { toast('Place lower (avoid HUD)'); return; }
+
+    // prevent overlapping too tightly
+    for (const t of towers){
+      if (Math.hypot(t.x-x, t.y-y) < 30){
+        toast('Too close to another tower');
+        return;
+      }
+    }
+
+    towers.push(new Tower(x,y,it));
+
+    // remove from inventory (inventory-only economy)
+    const idx = inventory.findIndex(a => a.id === it.id);
+    if (idx>=0) inventory.splice(idx,1);
+
+    // choose next item automatically
+    selectedInvId = inventory[0]?.id ?? null;
+
+    renderInventory();
+  }
+
+  canvas.addEventListener('pointerdown', (e) => {
+    if (!e.isPrimary) return;
+    e.preventDefault();
+    const now = performance.now();
+    if (now - lastTapAt < 180) return;
+    lastTapAt = now;
+
+    const rect = canvas.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+
+    placeTowerAt(x,y);
+  }, {passive:false});
+
+  // ========= Repair / Upgrade (between rifts) =========
+  function repairCost(t){
+    const missing = Math.max(0, t.maxHP - t.hp);
+    return Math.ceil(missing * 0.5);
+  }
+
+  function upgradeCost(t){
+    // scaling, but fair
+    return Math.ceil(35 + rift*8 + t.affixes.length*18);
+  }
+
+  function randomUpgradeOptions(t){
+    // Two options: either stat up, affix add (if <3), or tank enhancement (if tank)
+    const opts = [];
+    const isTank = !!t.beh.tank;
+
+    // Option generators
+    function optStat(label, applyFn){
+      return { label, apply: applyFn };
+    }
+
+    const riftScaleDmg = 1 + (rift * 0.020);
+    const riftScaleHp  = 1 + (rift * 0.015);
+    const riftScaleRng = 1 + (rift * 0.010);
+    const riftScaleRof = 1 + (rift * 0.015);
+
+    const statOpts = [
+      optStat('+18% Damage', () => { t.item.stats.dmg *= (1.18 * riftScaleDmg); }),
+      optStat('-12% Attack Delay (faster)', () => { t.item.stats.rof *= (0.88 / riftScaleRof); }),
+      optStat('+15% Range', () => { t.item.stats.range *= (1.15 * riftScaleRng); }),
+      optStat('+22% Max HP', () => { t.item.stats.hp *= (1.22 * riftScaleHp); t.maxHP = Math.floor(t.item.stats.hp); }),
+    ];
+
+    const tankOpts = [
+      optStat('Guardian: +Taunt Radius', () => { t.beh.tank.tauntRadius = Math.floor(t.beh.tank.tauntRadius * 1.12); }),
+      optStat('Guardian: +Threat', () => { t.beh.tank.threatMult = t.beh.tank.threatMult * 1.12; }),
+      optStat('Guardian: +Durability', () => { t.beh.tank.dmgTakenMult = t.beh.tank.dmgTakenMult * 0.93; }),
+    ];
+
+    function addAffix(){
+      if (t.affixes.length >= 3){
+        return null;
+      }
+      // pick a behavior/stat affix not already present by key (except tank)
+      const existingKeys = new Set(t.affixes.map(a=>a.key));
+      const candidates = AFFIX_POOL_COMMON.filter(a => !existingKeys.has(a.key));
+      if (candidates.length === 0) return null;
+      const a = candidates[Math.floor(Math.random()*candidates.length)];
+      return optStat('Add Affix: ' + a.name, () => { t.affixes.push(a); });
+    }
+
+    // Build options
+    // Always include one stat option
+    opts.push(statOpts[Math.floor(Math.random()*statOpts.length)]);
+
+    // Second option depends
+    if (isTank && Math.random()<0.65){
+      opts.push(tankOpts[Math.floor(Math.random()*tankOpts.length)]);
+    } else {
+      const add = addAffix();
+      if (add && Math.random()<0.65) opts.push(add);
+      else opts.push(statOpts[Math.floor(Math.random()*statOpts.length)]);
+    }
+
+    // Ensure distinct labels
+    if (opts[0].label === opts[1].label){
+      opts[1] = statOpts[(Math.floor(Math.random()*statOpts.length)+1)%statOpts.length];
+    }
+    return opts;
+  }
+
+  function renderTowerPanel(){
+    if (!selectedTower || !towers.includes(selectedTower) || !inIntermission()){
+      towerPanelEl.style.display = 'none';
+      return;
+    }
+    towerPanelEl.style.display = 'block';
+
+    const t = selectedTower;
+    const isTank = !!t.beh.tank;
+    const aff = t.affixes.map(a=>a.name).join(', ') || 'None';
+    const beh = describeBehaviors(t.affixes);
+    const cRepair = repairCost(t);
+    const cUp = upgradeCost(t);
+
+    towerInfoEl.innerHTML = `
+      <div><b>${FRAME[t.frame].label}${isTank ? ' Tank' : ''}</b> • HP ${Math.ceil(t.hp)}/${t.maxHP} • Range ${Math.floor(t.base.range)} • Dmg ${t.base.dmg.toFixed(1)} • Rof ${t.base.rof.toFixed(1)}</div>
+      <div style="margin-top:4px;">Affixes: <span class="muted">${aff}</span></div>
+      <div style="margin-top:4px;" class="roleLine">Role: ${beh}</div>
+      <div style="margin-top:6px;" class="muted">Repair cost: <b>${cRepair}</b> gold • Upgrade cost: <b>${cUp}</b> gold</div>
+    `;
+
+    repairBtn.disabled = (cRepair<=0) || gold < cRepair;
+    upgradeBtn.disabled = gold < cUp;
+
+    repairBtn.textContent = cRepair>0 ? `Repair (${cRepair})` : 'Repair (Full)';
+    upgradeBtn.textContent = `Upgrade (${cUp})`;
+  }
+
+  repairBtn.onclick = () => {
+    if (!selectedTower || !inIntermission()) return;
+    const t = selectedTower;
+    const c = repairCost(t);
+    if (c<=0) return toast('Already full');
+    if (gold < c) return toast('Not enough gold');
+    gold -= c;
+    t.hp = t.maxHP;
+    toast('Tower repaired');
+    renderTowerPanel();
+  };
+
+  upgradeBtn.onclick = () => {
+    if (!selectedTower || !inIntermission()) return;
+    const t = selectedTower;
+    const c = upgradeCost(t);
+    if (gold < c) return toast('Not enough gold');
+    const opts = randomUpgradeOptions(t);
+    if (!opts || opts.length<2) return toast('No upgrade options');
+
+    // Simple selection: prompt-like overlay via confirm/second confirm
+    // Mobile-friendly: first option via OK, second via Cancel.
+    const msg = `Choose Upgrade:\n\nOK: ${opts[0].label}\nCancel: ${opts[1].label}`;
+    const pickFirst = confirm(msg);
+    gold -= c;
+    if (pickFirst) opts[0].apply();
+    else opts[1].apply();
+
+    // Recompute tower stats/behaviors after changes
+    t.recompute();
+
+    toast('Upgraded: ' + (pickFirst ? opts[0].label : opts[1].label));
+    renderTowerPanel();
+    renderInventory();
+  };
+
+  // ========= Drawing =========
+  // ========= Viking/Fantasy Theme Drawing Helpers (visual only) =========
+  function drawVignette(){
+    const g = ctx.createRadialGradient(width*0.5, height*0.45, Math.min(width,height)*0.15,
+                                       width*0.5, height*0.45, Math.max(width,height)*0.75);
+    g.addColorStop(0, 'rgba(0,0,0,0)');
+    g.addColorStop(1, 'rgba(0,0,0,0.45)');
+    ctx.fillStyle = g;
+    ctx.fillRect(0,0,width,height);
+  }
+
+  // simple snow particle field (deterministic-ish)
+  const snow = Array.from({length: 90}, (_,i)=>({
+    x: Math.random()*width,
+    y: Math.random()*height,
+    r: 0.8 + Math.random()*1.6,
+    s: 0.12 + Math.random()*0.35,
+    a: 0.25 + Math.random()*0.35
+  }));
+  function updateSnow(dt){
+    for (const p of snow){
+      p.y += p.s*dt*6;
+      p.x += Math.sin((p.y*0.01)+p.r)*0.08*dt*6;
+      if (p.y > height+10){ p.y = -10; p.x = Math.random()*width; }
+    }
+  }
+  function drawSnow(){
+    ctx.save();
+    ctx.fillStyle = 'rgba(255,255,255,0.65)';
+    for (const p of snow){
+      ctx.globalAlpha = p.a;
+      ctx.beginPath(); ctx.arc(p.x,p.y,p.r,0,Math.PI*2); ctx.fill();
+    }
+    ctx.restore();
+  }
+
+  function drawRunicCircle(x,y,r,alpha=0.35){
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    ctx.strokeStyle = 'rgba(140,220,255,0.85)';
+    ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.arc(x,y,r,0,Math.PI*2); ctx.stroke();
+    ctx.globalAlpha = alpha*0.7;
+    ctx.strokeStyle = 'rgba(255,215,120,0.75)';
+    ctx.setLineDash([6,6]);
+    ctx.beginPath(); ctx.arc(x,y,r*0.86,0,Math.PI*2); ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.restore();
+  }
+
+  function drawTotem(x,y,frameColor,isTank,affixCount){
+    // wooden totem base
+    ctx.save();
+    ctx.translate(x,y);
+
+    // shadow
+    ctx.globalAlpha = 0.28;
+    ctx.fillStyle = 'rgba(0,0,0,0.7)';
+    ctx.beginPath(); ctx.ellipse(0, 16, 14, 6, 0, 0, Math.PI*2); ctx.fill();
+    ctx.globalAlpha = 1;
+
+    // post
+    ctx.fillStyle = '#6b4a2f';
+    ctx.fillRect(-6, -12, 12, 26);
+    ctx.fillStyle = '#5a3e27';
+    ctx.fillRect(-6, -12, 2, 26);
+
+    // rune plate
+    ctx.fillStyle = '#1a1f26';
+    ctx.fillRect(-12, -20, 24, 16);
+    ctx.strokeStyle = 'rgba(255,255,255,0.20)';
+    ctx.lineWidth = 1.5;
+    ctx.strokeRect(-12, -20, 24, 16);
+
+    // rune glow
+    ctx.fillStyle = frameColor;
+    ctx.globalAlpha = 0.9;
+    ctx.beginPath();
+    ctx.moveTo(0,-18); ctx.lineTo(6,-14); ctx.lineTo(0,-10); ctx.lineTo(-6,-14);
+    ctx.closePath(); ctx.fill();
+    ctx.globalAlpha = 0.35;
+    ctx.beginPath(); ctx.arc(0,-14,10,0,Math.PI*2); ctx.fill();
+    ctx.globalAlpha = 1;
+
+    // tank crown
+    if (isTank){
+      ctx.strokeStyle = 'rgba(255,215,0,0.95)';
+      ctx.lineWidth = 2.5;
+      ctx.beginPath(); ctx.arc(0,-14,12,0,Math.PI*2); ctx.stroke();
+      ctx.fillStyle = 'rgba(255,215,0,0.18)';
+      ctx.beginPath(); ctx.arc(0,-14,12,0,Math.PI*2); ctx.fill();
+    } else if (affixCount>0){
+      ctx.strokeStyle = (affixCount>=2) ? 'rgba(78,205,196,0.95)' : 'rgba(200,200,200,0.75)';
+      ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.arc(0,-14,12,0,Math.PI*2); ctx.stroke();
+    }
+
+    ctx.restore();
+  }
+
+  function drawLootChest(x,y,tier){
+    const c = (tier==='Epic') ? 'rgba(255,215,0,0.95)' : (tier==='Rare' ? 'rgba(78,205,196,0.95)' : 'rgba(180,180,180,0.85)');
+    ctx.save();
+    ctx.translate(x,y);
+
+    // glow
+    ctx.globalAlpha = 0.22;
+    ctx.fillStyle = c;
+    ctx.beginPath(); ctx.arc(0,0,22,0,Math.PI*2); ctx.fill();
+    ctx.globalAlpha = 1;
+
+    // chest
+    ctx.fillStyle = '#3a2a1a';
+    ctx.fillRect(-14,-8,28,18);
+    ctx.fillStyle = '#2b2016';
+    ctx.fillRect(-14,-8,28,7);
+
+    // band
+    ctx.strokeStyle = c;
+    ctx.lineWidth = 3;
+    ctx.strokeRect(-14,-8,28,18);
+
+    // latch rune
+    ctx.fillStyle = c;
+    ctx.font = 'bold 14px Arial';
+    ctx.textAlign = 'center'; ctx.textBaseline='middle';
+    ctx.fillText('ᚱ', 0, 1);
+
+    ctx.restore();
+  }
+
+  function drawEnemyDraugr(x,y,r,isBoss,affix){
+    ctx.save();
+    ctx.translate(x,y);
+
+    // base silhouette
+    // goblins are tinted gold for readability
+    const body = isBoss ? '#2b0d45' : (affix==='goblin' ? '#3c2e08' : '#163a1f');
+    ctx.fillStyle = body;
+    ctx.beginPath(); ctx.arc(0,0,r,0,Math.PI*2); ctx.fill();
+
+    // helm
+    ctx.fillStyle = '#2a313a';
+    ctx.fillRect(-r*0.65, -r*0.75, r*1.3, r*0.75);
+    ctx.strokeStyle = 'rgba(255,255,255,0.18)';
+    ctx.lineWidth = 1.5;
+    ctx.strokeRect(-r*0.65, -r*0.75, r*1.3, r*0.75);
+
+    // horns
+    ctx.strokeStyle = 'rgba(240,240,240,0.75)';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(-r*0.55,-r*0.65); ctx.quadraticCurveTo(-r*0.95,-r*0.85,-r*0.90,-r*0.35);
+    ctx.moveTo( r*0.55,-r*0.65); ctx.quadraticCurveTo( r*0.95,-r*0.85, r*0.90,-r*0.35);
+    ctx.stroke();
+
+    // eyes glow
+    const eye = isBoss ? 'rgba(255,215,0,0.95)' : 'rgba(140,220,255,0.95)';
+    ctx.fillStyle = eye;
+    ctx.beginPath(); ctx.arc(-r*0.22, -r*0.18, r*0.10, 0, Math.PI*2); ctx.fill();
+    ctx.beginPath(); ctx.arc( r*0.22, -r*0.18, r*0.10, 0, Math.PI*2); ctx.fill();
+
+    // affix tint ring
+    if (!isBoss && affix){
+      const ring = (affix==='fast')?'rgba(126,217,87,0.9)'
+        : (affix==='armored')?'rgba(154,160,166,0.9)'
+        : (affix==='regen')?'rgba(110,231,183,0.9)'
+        : (affix==='goblin')?'rgba(255,215,64,0.95)'
+        : 'rgba(96,165,250,0.9)';
+      ctx.globalAlpha = 0.65;
+      ctx.strokeStyle = ring;
+      ctx.lineWidth = 3;
+      ctx.beginPath(); ctx.arc(0,0,r+2,0,Math.PI*2); ctx.stroke();
+      ctx.globalAlpha = 1;
+    }
+
+    // boss rune crown
+    if (isBoss){
+      drawRunicCircle(0,-r*0.15,r*0.95,0.38);
+      ctx.fillStyle = 'rgba(255,215,120,0.9)';
+      ctx.font = 'bold 18px Arial';
+      ctx.textAlign='center'; ctx.textBaseline='middle';
+      ctx.fillText('ᚦ', 0, -r*0.75);
+    }
+
+    ctx.restore();
+  }
+
+  function drawPaths(){
+    // background: cold stone + subtle runic grid
+    ctx.fillStyle = '#101318';
+    ctx.fillRect(0,0,width,height);
+
+    // faint runic grid
+    ctx.save();
+    ctx.globalAlpha = 0.10;
+    ctx.strokeStyle = 'rgba(140,220,255,0.6)';
+    ctx.lineWidth = 1;
+    const step = 56;
+    for (let x=0;x<width;x+=step){ ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,height); ctx.stroke(); }
+    for (let y=0;y<height;y+=step){ ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(width,y); ctx.stroke(); }
+    ctx.restore();
+
+    // cobblestone path
+    ctx.lineCap='round';
+    ctx.lineJoin='round';
+    ctx.lineWidth=20;
+    ctx.strokeStyle='rgba(70,76,86,0.85)';
+    for (const path of paths){
+      ctx.beginPath();
+      ctx.moveTo(path[0].x, path[0].y);
+      for (let i=1;i<path.length;i++) ctx.lineTo(path[i].x, path[i].y);
+      ctx.stroke();
+    }
+    // path edge glow
+    ctx.lineWidth=24;
+    ctx.globalAlpha=0.10;
+    ctx.strokeStyle='rgba(140,220,255,0.9)';
+    for (const path of paths){
+      ctx.beginPath();
+      ctx.moveTo(path[0].x, path[0].y);
+      for (let i=1;i<path.length;i++) ctx.lineTo(path[i].x, path[i].y);
+      ctx.stroke();
+    }
+    ctx.globalAlpha=1;
+
+    // cobble texture speckles
+    ctx.save();
+    ctx.globalAlpha = 0.12;
+    ctx.fillStyle = '#dbeafe';
+    for (let i=0;i<140;i++){
+      const px = Math.random()*width;
+      const py = Math.random()*height;
+      // only sprinkle near path centers (cheap approximation: near central band)
+      if (py < height*0.86 && py > height*0.10 && Math.abs(px-width*0.5) < width*0.40){
+        ctx.fillRect(px, py, 1.5, 1.5);
+      }
+    }
+    ctx.restore();
+
+    // objective rune stone
+    ctx.save();
+    ctx.globalAlpha = 0.9;
+    ctx.fillStyle = '#2a313a';
+    ctx.beginPath(); ctx.arc(objective.x, objective.y, 18, 0, Math.PI*2); ctx.fill();
+    ctx.strokeStyle = 'rgba(255,215,120,0.85)';
+    ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.arc(objective.x, objective.y, 18, 0, Math.PI*2); ctx.stroke();
+    ctx.fillStyle = 'rgba(255,215,120,0.95)';
+    ctx.font = 'bold 18px Arial';
+    ctx.textAlign='center'; ctx.textBaseline='middle';
+    ctx.fillText('ᚨ', objective.x, objective.y+1);
+    ctx.restore();
+  }
+
+  function updateHUD(){
+    const invCount = inventory.length;
+    const towerCount = towers.length;
+    const lootCount = lootDrops.length;
+
+    const status = spawning ? '(spawning)' : (canStartRift() ? '(ready)' : '(fighting)');
+    const inter = inIntermission() ? 'Intermission: Repair/Upgrade' : 'Combat';
+    hudText.textContent =
+      `Gold: ${gold} | Base: ${baseHealth} | Rift: ${rift} ${status} | ${inter} | Towers: ${towerCount} | Inventory: ${invCount} | Loot on ground: ${lootCount}`;
+
+    const boss = enemies.find(e => e && e.isBoss);
+    if (boss){ hudText.textContent += ` | Boss Expose: ${boss.exposeStacks}`; }
+
+  }
+
+  // ========= Loot Drops on enemy death =========
+  function handleEnemyDeath(e){
+    // payout
+    // base reward by type; scale with rift so upgrades stay affordable
+    let baseReward;
+    if (e.isBoss) baseReward = 65;
+    else if (e.affix === 'goblin') baseReward = 70; // goblin jackpot
+    else baseReward = 15;
+
+    gold += Math.floor(baseReward * (1 + 0.35 * rift));
+
+    // loot: max 1 tower drop per rift; goblins never drop tower loot
+    if (dropsThisRift < 1 && e.affix !== 'goblin'){
+      const dropChance = e.isBoss ? 0.85 : (rift >= 3 ? 0.33 : 0.30);
+
+      // Early dopamine: first 2 rifts guarantee at least 1 tower drop per rift (from the first non-boss kill that happens)
+      const forceDrop = (!e.isBoss && rift <= 2 && dropsThisRift === 0);
+
+      if (forceDrop || (Math.random() < dropChance)){
+        const it = genTowerItem(e.isBoss);
+        lootDrops.push(new LootDrop(e.x, e.y, it));
+        dropsThisRift++;
+      }
+    }
+  }
+
+  // ========= Restart =========
+  restartBtn.onclick = () => {
+    towers.length = 0;
+    enemies.length = 0;
+    tBullets.length = 0;
+    eBullets.length = 0;
+    lootDrops.length = 0;
+
+    gold = 150;
+    baseHealth = 150;
+    rift = 0;
+    spawning = false;
+
+    seedStarterInventory();
+    selectedTower = null;
+    renderInventory();
+    renderTowerPanel();
+    timeScale = 1;
+    speedBtn.textContent = 'Speed: 1×';
+    toast('Restarted');
+    setCombatUI();
+  };
+
+  // ========= Main Loop =========
+  let last = performance.now();
+  function loop(now){
+    const rawDt = (now - last) / 16.6667; // dt in "frames" (1 ~= 60fps)
+    last = now;
+
+    const dt = rawDt * timeScale;
+    ctx.clearRect(0,0,canvas.width,canvas.height);
+
+    updateSnow(dt);
+    drawPaths();
+    drawSnow();
+    drawVignette();
+
+    computeClusterThreatBonuses();
+
+    // Update entities
+    for (const e of [...enemies]) e.update(dt);
+    for (let i=enemies.length-1;i>=0;i--){
+      if (!Number.isFinite(enemies[i].hp) || enemies[i].hp <= 0){
+        const dead = enemies[i];
+        enemies.splice(i,1);
+        handleEnemyDeath(dead);
+      }
+    }
+
+    for (const t of towers) t.update(dt);
+    for (const b of [...tBullets]) b.update(dt);
+    for (const b of [...eBullets]) b.update(dt);
+    for (const l of lootDrops) l.update(dt);
+
+    
+    vfxUpdate(dt);
+// Draw
+    for (const l of lootDrops) l.draw();
+    for (const b of tBullets) b.draw();
+    for (const b of eBullets) b.draw();
+    
+
+    // VFX overlays (arcs, puddles, embers, rings)
+    vfxDraw();
+for (const e of enemies) e.draw();
+    for (const t of towers) t.draw();
+
+    // UI
+    updateStartButton();
+    updateHUD();
+    setCombatUI();
+
+    // Intermission tower panel availability
+    if (!inIntermission()){
+      towerPanelEl.style.display = 'none';
+    } else {
+      if (selectedTower && towers.includes(selectedTower)) renderTowerPanel();
+    }
+
+    // Death
+    if (baseHealth <= 0){
+      ctx.fillStyle='rgba(0,0,0,0.6)';
+      ctx.fillRect(0,0,width,height);
+      ctx.fillStyle='red';
+      ctx.font='bold 44px Arial';
+      ctx.textAlign='center';
+      ctx.fillText('Rift Closed — You Died', width/2, height/2);
+      ctx.font='18px Arial';
+      ctx.fillStyle='#fff';
+      ctx.fillText('Tap Restart to try again.', width/2, height/2 + 36);
+      return;
+    }
+
+    requestAnimationFrame(loop);
+  }
+
+  updateStartButton();
+  updateHUD();
+  setCombatUI();
+  requestAnimationFrame(loop);
+})();
+</script>
 </body>
 </html>
