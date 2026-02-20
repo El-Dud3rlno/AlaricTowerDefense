@@ -243,8 +243,10 @@
   <div id="toast"></div>
   <canvas id="gameCanvas"></canvas>
 
+<script src="src/config/balance.js"></script>
 <script>
 (() => {
+  const BAL = window.GAME_BALANCE;
   // ========= Canvas / UI =========
   const canvas = document.getElementById('gameCanvas');
   const ctx = canvas.getContext('2d');
@@ -567,8 +569,8 @@ let spawning = false;
   function clamp(v,a,b){ return Math.max(a, Math.min(b, v)); }
 
   const FRAME = {
-    light: { label:'Light', baseHP: 70, baseDmg: 7.5, baseRof: 14, baseRange: 125, baseThreat: 1.0, color:'#5aa7ff' },
-    heavy: { label:'Heavy', baseHP: 140, baseDmg: 6.0, baseRof: 18, baseRange: 120, baseThreat: 1.35, color:'#ff6b6b' }
+    light: { label:'Light', baseHP: BAL.frame.light.baseHP, baseDmg: BAL.frame.light.baseDmg, baseRof: BAL.frame.light.baseRof, baseRange: BAL.frame.light.baseRange, baseThreat: BAL.frame.light.baseThreat, color:'#5aa7ff' },
+    heavy: { label:'Heavy', baseHP: BAL.frame.heavy.baseHP, baseDmg: BAL.frame.heavy.baseDmg, baseRof: BAL.frame.heavy.baseRof, baseRange: BAL.frame.heavy.baseRange, baseThreat: BAL.frame.heavy.baseThreat, color:'#ff6b6b' }
   };
 
   // Affixes are behavior-first. Each affix can:
@@ -576,23 +578,23 @@ let spawning = false;
   // - add behavior tags (chain/splash/burn/slow/poison)
   // - modify threat (tank)
   const AFFIX_POOL_COMMON = [
-    { key:'power', name:'Powerful', kind:'stat', stat:'dmg', mult:1.30 },
-    { key:'swift', name:'Swift', kind:'stat', stat:'rof', mult:0.80 },
-    { key:'precise', name:'Precise', kind:'stat', stat:'range', mult:1.30 },
-    { key:'resilient', name:'Resilient', kind:'stat', stat:'hp', mult:1.35 },
-    { key:'chain', name:'Chain', kind:'behavior', tag:'chain', data:{range:120, pct:0.60} },
-    { key:'splash', name:'Splash', kind:'behavior', tag:'splash', data:{radius:46, pct:0.50} },
-    { key:'burn', name:'Burn', kind:'behavior', tag:'burn', data:{ticks:32, dps:1.6} },
-    { key:'slow', name:'Frost', kind:'behavior', tag:'slow', data:{ticks:60, mult:0.55} },
-    { key:'poison', name:'Poison', kind:'behavior', tag:'poison', data:{ticks:95, dps:0.85, bossMult:1.5} },
-    { key:'sanctuary', name:'Sanctuary', kind:'behavior', tag:'support', data:{ pulse:240, healPct:0.08, dmgBuff:1.25, buffDur:180 } },
-    { key:'crit', name:'Crit', kind:'behavior', tag:'crit', data:{chance:0.12, mult:1.7} },
+    { key:'power', name:'Powerful', kind:'stat', stat:'dmg', mult:BAL.affix.powerMult },
+    { key:'swift', name:'Swift', kind:'stat', stat:'rof', mult:BAL.affix.swiftMult },
+    { key:'precise', name:'Precise', kind:'stat', stat:'range', mult:BAL.affix.preciseMult },
+    { key:'resilient', name:'Resilient', kind:'stat', stat:'hp', mult:BAL.affix.resilientMult },
+    { key:'chain', name:'Chain', kind:'behavior', tag:'chain', data:BAL.affix.chain },
+    { key:'splash', name:'Splash', kind:'behavior', tag:'splash', data:BAL.affix.splash },
+    { key:'burn', name:'Burn', kind:'behavior', tag:'burn', data:BAL.affix.burn },
+    { key:'slow', name:'Frost', kind:'behavior', tag:'slow', data:BAL.affix.slow },
+    { key:'poison', name:'Poison', kind:'behavior', tag:'poison', data:BAL.affix.poison },
+    { key:'sanctuary', name:'Sanctuary', kind:'behavior', tag:'support', data:BAL.affix.sanctuary },
+    { key:'crit', name:'Crit', kind:'behavior', tag:'crit', data:BAL.affix.crit },
   ];
 
   // Tank affix is rare and ONLY for heavy frame (as per your direction).
   const AFFIX_TANK = {
     key:'guardian', name:'Guardian', kind:'tank', tag:'tank',
-    data:{ threatMult:4.5, tauntRadius:140, tauntEvery:180, dmgMult:0.60, dmgTakenMult:0.70 }
+    data:BAL.affix.guardian
   };
 
   function pickUnique(pool, n){
@@ -783,7 +785,7 @@ let spawning = false;
 
     out.dmg *= towerDmgMult() * tierBonus;
     // Investment scaling: every upgrade purchased increases global tower damage (prevents boss stat-walls).
-    const investMult = 1 + (0.21 * totalUpgradesSpent);
+    const investMult = 1 + (BAL.scaling.investmentDamagePerUpgrade * totalUpgradesSpent);
     out.dmg *= investMult;
     out.hp  *= towerHpMult()  * tierBonus;
 
@@ -1105,16 +1107,16 @@ const r = tower.beh.splash.radius;
   }
 
   // ========= Enemies + Threat =========
-  function hpMultForRift(r){ return Math.pow(1.085, r); }
-  function spdMultForRift(r){ return Math.min(1 + 0.015*r, 1.6); }
-  function dmgMultForRift(r){ return 1 + 0.08*r; }
-  function countForRift(r){ return 6 + Math.floor(r*1.7); }
-  function spawnGapForRift(r){ return Math.max(240, 680 * Math.pow(0.96, r)); }
+  function hpMultForRift(r){ return Math.pow(BAL.scaling.enemyHPBaseGrowth, r); }
+  function spdMultForRift(r){ return Math.min(1 + BAL.scaling.enemySpeedPerRift*r, 1.6); }
+  function dmgMultForRift(r){ return 1 + BAL.scaling.enemyDamagePerRift*r; }
+  function countForRift(r){ return BAL.scaling.enemyCountBase + Math.floor(r*BAL.scaling.enemyCountPerRift); }
+  function spawnGapForRift(r){ return Math.max(BAL.scaling.spawnGapMin, BAL.scaling.spawnGapStart * Math.pow(BAL.scaling.spawnGapDecay, r)); }
 
   // ========= Tower global scaling (keeps towers relevant as rifts scale) =========
-  function towerDmgMult(){ return 1 + 0.0975 * rift; }  // +6.5% damage per rift  // +3% damage per rift
-  function towerHpMult(){ return 1 + 0.0675 * rift; }   // +4.5% max HP per rift   // +2% max HP per rift
-  function towerRangeMult(){ return 1 + 0.018 * rift; } // +1.2% range per rift // +1% range per rift
+  function towerDmgMult(){ return (1 + BAL.scaling.towerDamageLinearPerRift * rift) * Math.pow(BAL.scaling.towerDamageExpPerRift, rift); }
+  function towerHpMult(){ return (1 + BAL.scaling.towerHpLinearPerRift * rift) * Math.pow(BAL.scaling.towerHpExpPerRift, rift); }
+  function towerRangeMult(){ return 1 + BAL.scaling.towerRangePerRift * rift; }
 
   // Diablo-style currency goblin: occasional fast enemy that drops extra gold (no loot)
   const GOBLIN_CHANCE = 0.12;
@@ -1138,25 +1140,25 @@ const r = tower.beh.splash.radius;
       this.x=this.path[0].x; this.y=this.path[0].y;
 
       // Early-game HP smoothing: reduce normal enemy HP in rifts 1-5, ramp to normal by rift 6
-      const earlyHPFactor = (!isBoss && !this.isGoblin && rift <= 6) ? (0.82 + (rift-1) * (0.18/5)) : 1.0;
+      const earlyHPFactor = (!isBoss && !this.isGoblin && rift <= BAL.scaling.earlyHpEndRift) ? (BAL.scaling.earlyHpStart + (rift-1) * ((1-BAL.scaling.earlyHpStart)/(BAL.scaling.earlyHpEndRift-1))) : 1.0;
 
       let baseHP;
       let baseSPD;
       if (isBoss){
-        baseHP = 1100;
-        baseSPD = 0.85;
+        baseHP = BAL.scaling.bossHpBase;
+        baseSPD = BAL.scaling.bossBaseSpeed;
       } else if (this.isGoblin){
         // goblin: low HP, high speed
         baseHP = 60;
         baseSPD = 1.6;
       } else {
-        baseHP = (140 * earlyHPFactor);
-        baseSPD = 0.9;
+        baseHP = (BAL.scaling.trashHpBase * earlyHPFactor);
+        baseSPD = BAL.scaling.trashBaseSpeed;
       }
 
       // Non-boss scaling ramp: makes trash mobs meaningfully tougher over time without over-buffing bosses.
-      const nonBossRamp = (!isBoss && !this.isGoblin) ? (1 + 0.12 * rift) : 1;
-      const hp = baseHP * hpMultForRift(rift) * nonBossRamp * scale * (isBoss ? 6.2 : 1);
+      const nonBossRamp = (!isBoss && !this.isGoblin) ? (1 + BAL.scaling.nonBossRampPerRift * rift) : 1;
+      const hp = baseHP * hpMultForRift(rift) * nonBossRamp * scale * (isBoss ? BAL.scaling.bossHpMultiplier : 1);
       const sp = baseSPD * spdMultForRift(rift) * (affix==='fast' ? 1.25 : 1);
       this.hp = Math.floor(hp);
       this.max = this.hp;
@@ -1251,17 +1253,17 @@ const r = tower.beh.splash.radius;
       if (this.isBoss){
         if (sourceTower){
           // ramps with rifts; intended to keep boss time-to-kill reasonable as enemy HP scales
-          const bossSlayer = 1 + (0.09 * Math.max(0, rift - 1));
+          const bossSlayer = 1 + (BAL.scaling.bossSlayerPerRift * Math.max(0, rift - 1));
           amount *= bossSlayer;
         }
 
         // Apply current expose stacks to damage taken (up to +225% at 30 stacks).
         if (this.exposeStacks > 0){
-          amount *= (1 + 0.075 * this.exposeStacks);
+          amount *= (1 + BAL.scaling.bossExposePerStack * this.exposeStacks);
         }
 
         // On hit: add 1 stack and refresh decay timer.
-        this.exposeStacks = Math.min(30, this.exposeStacks + 1);
+        this.exposeStacks = Math.min(BAL.scaling.bossExposeMaxStacks, this.exposeStacks + 1);
         this.exposeCooldown = 90;
       }
 
@@ -1570,7 +1572,7 @@ const r = tower.beh.splash.radius;
 
   function upgradeCost(t){
     // scaling, but fair
-    return Math.ceil(35 + rift*8 + t.affixes.length*18);
+    return Math.ceil(BAL.scaling.upgradeCostBase + rift*BAL.scaling.upgradeCostPerRift + t.affixes.length*BAL.scaling.upgradeCostPerAffix);
   }
 
   function randomUpgradeOptions(t){
@@ -1583,16 +1585,16 @@ const r = tower.beh.splash.radius;
       return { label, apply: applyFn };
     }
 
-    const riftScaleDmg = 1 + (rift * 0.020);
-    const riftScaleHp  = 1 + (rift * 0.015);
-    const riftScaleRng = 1 + (rift * 0.010);
-    const riftScaleRof = 1 + (rift * 0.015);
+    const riftScaleDmg = 1 + (rift * BAL.scaling.upgradeDmgRiftScale);
+    const riftScaleHp  = 1 + (rift * BAL.scaling.upgradeHpRiftScale);
+    const riftScaleRng = 1 + (rift * BAL.scaling.upgradeRangeRiftScale);
+    const riftScaleRof = 1 + (rift * BAL.scaling.upgradeRofRiftScale);
 
     const statOpts = [
-      optStat('+18% Damage', () => { t.item.stats.dmg *= (1.18 * riftScaleDmg); }),
-      optStat('-12% Attack Delay (faster)', () => { t.item.stats.rof *= (0.88 / riftScaleRof); }),
-      optStat('+15% Range', () => { t.item.stats.range *= (1.15 * riftScaleRng); }),
-      optStat('+22% Max HP', () => { t.item.stats.hp *= (1.22 * riftScaleHp); t.maxHP = Math.floor(t.item.stats.hp); }),
+      optStat('+22% Damage', () => { t.item.stats.dmg *= ((1+BAL.scaling.upgradeDmgPct) * riftScaleDmg); }),
+      optStat('-14% Attack Delay (faster)', () => { t.item.stats.rof *= ((1-BAL.scaling.upgradeRofPct) / riftScaleRof); }),
+      optStat('+16% Range', () => { t.item.stats.range *= ((1+BAL.scaling.upgradeRangePct) * riftScaleRng); }),
+      optStat('+26% Max HP', () => { t.item.stats.hp *= ((1+BAL.scaling.upgradeHpPct) * riftScaleHp); t.maxHP = Math.floor(t.item.stats.hp); }),
     ];
 
     const tankOpts = [
